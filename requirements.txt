@@ -1,0 +1,8 @@
+google-genai
+telebot
+md2tgmd
+markdown-it-py
+httpx[socks]
+fastapi
+uvicorn
+aiohttp
