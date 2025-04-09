@@ -46,5 +46,4 @@ async def init_bot():
 
 
 if __name__ == '__main__':
-    bconf.setLocalProxies()
     asyncio.run(init_bot())

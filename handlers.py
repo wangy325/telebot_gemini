@@ -117,13 +117,11 @@ async def group_at_text_handler(message: Message) -> None:
 # image2text
 @bot.message_handler(func=lambda message: True, content_types=['photo', 'document', 'video', 'audio'])
 async def file_handler(message: Message) -> None:
-    # logger.info(f'image message received: chat_type: {message.chat.type}, caption: {message.caption}')
     return await handle_file(message)
 
 #  handle files
 async def handle_file(message: Message):
     content_type = message.content_type
-    # logger.info(f"handle_file: content type is: {content_type}")
     chat_type = message.chat.type
     caption = message.caption
     model = model_1
@@ -163,7 +161,6 @@ async def handle_file(message: Message):
         traceback.print_exc()
         await del_err_message(sent_message, error_info)
     
-    # await file_path = bconf.FILE_PATH.format(bconf.BOT_TOKEN, file.file_path)
     contents = [
         types.Part.from_text(text=caption),
         types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
@@ -171,11 +168,8 @@ async def handle_file(message: Message):
     ]
     logger.info(f'content generating: file: {file_info.file_path}, caption: {caption}, model: {model}')
     try:
-        # raise ServerError(code=503, response_json={'code': 503, 'message': 'Internet Server error message'})
-        # raise ConnectError('debug error')
         response = await gemini_content(model, contents)
         try:
-            logger.info(f'generated: {response.text}')
             await split_and_send(bot,
                                 chat_id=sent_message.chat.id,
                                 text=response.text,
