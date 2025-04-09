@@ -64,21 +64,24 @@ FILE_PATH = "https://api.telegram.org/file/bot{}/{}"
 
 # model instructions
 MODEL_INSTRUCTIONS = [
-        "作为一个AI助手, 你总是倾向于使用中文回答问题",
+        "你是一个倾向于使用中文回答问题的AI助理",
         "You are a AI assistant who always intend to answer question in Chinese.",
         "Once you are asked in English, that means you are expected to reply in English."
 ]
 DEFAULT_PROMPT_EN = {
     "photo": "Please describe what you see in this picture. ",
     "document": "Please summarize this document for me. ",
-    "video": "Please summarize this video. " 
+    "video": "Please summarize this video. " ,
+    "audio": "Please describe this audio clip."
 }
 
 DEFAULT_PROMPT_CN = {
     "photo": "请为我描述这张图片。",
     "document": "请为我总结一下这个文档。",
-    "video": "请总结这个视频。"
+    "video": "请总结这个视频。",
+    "audio": "请描述此音频片段的内容"
 }
+
 # Gemini model configs
 generation_config = types.GenerateContentConfig(
     temperature=0.3,

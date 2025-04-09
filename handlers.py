@@ -1,9 +1,12 @@
+import asyncio
 import io
 import mimetypes
 import traceback
+from httpx import ConnectError
 from telebot.types import Message
 from md2tgmd import escape
 from google.genai import types
+from google.genai.errors import ServerError
 
 import bconf
 from gemini import chat as gemini_chat
@@ -111,21 +114,13 @@ async def group_at_text_handler(message: Message) -> None:
     await gemini_chat(bot, message, model)
 
 # content_types=['audio', 'photo', 'voice', 'video', 'document','text', 'location', 'contact', 'sticker']
-# handle pdf
-@bot.message_handler(func=lambda message: message.document.mime_type == 'application/pdf', content_types=['document'])
-async def document_handler(message: Message) -> None:
-    # logger.info(f'document message received: chat_type: {message.chat.type}, caption: {message.caption}')
-    return await handle_file(message)
-
-
 # image2text
-@bot.message_handler(func=lambda message: True, content_types=['photo'])
-async def image2text_handler(message: Message) -> None:
+@bot.message_handler(func=lambda message: True, content_types=['photo', 'document', 'video', 'audio'])
+async def file_handler(message: Message) -> None:
     # logger.info(f'image message received: chat_type: {message.chat.type}, caption: {message.caption}')
     return await handle_file(message)
 
-
-#  handle image and pdf
+#  handle files
 async def handle_file(message: Message):
     content_type = message.content_type
     # logger.info(f"handle_file: content type is: {content_type}")
@@ -157,12 +152,16 @@ async def handle_file(message: Message):
             file_info = await bot.get_file(message.photo[-1].file_id)
             mime_type= mimetypes.guess_type(file_info.file_path)[0]
         elif content_type == 'video':
+            file_info = await bot.get_file(message.video.file_id)
             mime_type = message.video.mime_type
+        elif content_type == 'audio':
+            file_info = await bot.get_file(message.audio.file_id)
+            mime_type = message.audio.mime_type
         sent_message = await bot.reply_to(message=message, text=before_gen_info)
         file_bytes = await bot.download_file(file_info.file_path)
     except Exception:
         traceback.print_exc()
-        await bot.reply_to(message, error_info)
+        await del_err_message(sent_message, error_info)
     
     # await file_path = bconf.FILE_PATH.format(bconf.BOT_TOKEN, file.file_path)
     contents = [
@@ -172,17 +171,27 @@ async def handle_file(message: Message):
     ]
     logger.info(f'content generating: file: {file_info.file_path}, caption: {caption}, model: {model}')
     try:
+        # raise ServerError(code=503, response_json={'code': 503, 'message': 'Internet Server error message'})
+        # raise ConnectError('debug error')
         response = await gemini_content(model, contents)
-        await split_and_send(bot,
-                             chat_id=sent_message.chat.id,
-                             text=response.text,
-                             message_id=sent_message.message_id,
-                             parse_mode='MarkdownV2')
-    except Exception as e:
-        traceback.print_exc()
-        await bot.edit_message_text(error_info,
-                                    chat_id=sent_message.chat.id,
-                                    message_id=sent_message.message_id)
+        try:
+            logger.info(f'generated: {response.text}')
+            await split_and_send(bot,
+                                chat_id=sent_message.chat.id,
+                                text=response.text,
+                                message_id=sent_message.message_id,
+                                parse_mode='MarkdownV2')
+        except Exception as e:
+            traceback.print_exc()
+            await del_err_message(sent_message, error_info)
+    except ServerError as e1:
+        # server 503
+        logger.error(f"Server error: code:{e1.code}, message: {e1.message}")
+        await del_err_message(sent_message, e1.message)
+    except ConnectError as e2:
+        # https error, ignore
+        logger.error('Internet Error')
+        await del_err_message(sent_message, 'Internet Error')
         
 async def choose_model(user_id:int) -> str:
     # choose model to chat, based on content in bconf.default_chat_dict
@@ -195,3 +204,12 @@ async def choose_model(user_id:int) -> str:
             return model_1
         else:
             return model_2
+
+async def del_err_message(message: Message, err_info:str):
+    await bot.edit_message_text(
+            err_info,
+            chat_id=message.chat.id,
+            message_id=message.message_id
+        )
+    await asyncio.sleep(30)
+    await bot.delete_message(message.chat.id, message.message_id)
