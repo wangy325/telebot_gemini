@@ -13,10 +13,8 @@ logger.setLevel(logging.INFO)
 
 # global configs
 prompts = {
-    'error_info':
-    "⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !",
-    'before_generate_info': "☁️Generating...",
-    'download_pic_notify': "☁️Loading picture..."
+    'error_info': "⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !",
+    'before_generate_info': "☁️Generating..."
 }
 
 models = {
@@ -52,7 +50,8 @@ if not args.key:
 API_KEY = args.key
 if not args.botName:
     logger.warning(
-        "--botName is not provided. Using default value '@wygemibot'. You have to set it if you want deploy your own bot with full features work fine."
+        "--botName is not provided. Using default value '@wygemibot'. You have to set it if you want deploy your own "
+        "bot with full features work fine."
     )
 BOT_NAME = args.botName or '@wygemibot'
 WEB_HOOK = args.webhook or None
@@ -60,13 +59,32 @@ WEBHOOK_PORT = 8443
 WEBHOOK_LISTEN = '0.0.0.0'
 #  no ssl used for koy'eb
 WEBHOOK_URL = f"{WEB_HOOK}/{BOT_TOKEN}/"
+#  telebot file path
+FILE_PATH = "https://api.telegram.org/file/bot{}/{}"
 
-## Gemini model configs
+# model instructions
+MODEL_INSTRUCTIONS = [
+        "作为一个AI助手, 你总是倾向于使用中文回答问题",
+        "You are a AI assistant who always intend to answer question in Chinese.",
+        "Once you are asked in English, that means you are expected to reply in English."
+]
+DEFAULT_PROMPT_EN = {
+    "photo": "Please describe what you see in this picture. ",
+    "document": "Please summarize this document for me. ",
+    "video": "Please summarize this video. " 
+}
+
+DEFAULT_PROMPT_CN = {
+    "photo": "请为我描述这张图片。",
+    "document": "请为我总结一下这个文档。",
+    "video": "请总结这个视频。"
+}
+# Gemini model configs
 generation_config = types.GenerateContentConfig(
     temperature=0.3,
     top_p=0.5,
     top_k=1,
-    max_output_tokens=1024,
+    max_output_tokens=2048,
     seed=30,
     tools=[types.Tool(google_search=types.GoogleSearch())],
     safety_settings=[
@@ -78,12 +96,21 @@ generation_config = types.GenerateContentConfig(
                             threshold='BLOCK_NONE'),
         types.SafetySetting(category='HARM_CATEGORY_DANGEROUS_CONTENT',
                             threshold='BLOCK_NONE'),
-    ])
+    ],
+    system_instruction=MODEL_INSTRUCTIONS
+)
 
-#  chat dicts 
+#  chat model cache 
 gemini_chat_dict = {}
 gemini_pro_chat_dict = {}
 default_chat_dict = {}
+# content generate cache
+gemini_content_dict = {}
+gemini_pro_content_dict = {}
+# context cache (for content generation only, to caching file in chat)
+# only caching last 1 file content
+file_context = {}
+
 
 # for local debug only
 def setLocalProxies():
@@ -92,5 +119,6 @@ def setLocalProxies():
     os.environ['https_proxy'] = "http://127.0.0.1:7890"
     os.environ['all_proxy'] = "socks5://127.0.0.1:7890"
     logger.info('Using local proxy.')
+
 
 logger.info("Arg parse done.")

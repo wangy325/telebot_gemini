@@ -12,6 +12,7 @@ import handlers
 logger = bconf.logger
 logger.name = __name__
 
+
 async def init_bot():
     try:
         await bot.delete_my_commands(scope=None, language_code=None)
@@ -22,7 +23,7 @@ async def init_bot():
             telebot.types.BotCommand("clear", "Clear all history"),
             telebot.types.BotCommand("switch", "Switch to default model(2.0-flash-exp)"),
         ], )
-        
+
         if bconf.WEB_HOOK:
             await bot.remove_webhook()
             await bot.set_webhook(url=bconf.WEBHOOK_URL)
@@ -44,7 +45,6 @@ async def init_bot():
         await bot.close_session()
 
 
-        
 if __name__ == '__main__':
-    # bconf.setLocalProxies()
+    bconf.setLocalProxies()
     asyncio.run(init_bot())

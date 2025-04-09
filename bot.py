@@ -9,6 +9,8 @@ bot = AsyncTeleBot(bconf.BOT_TOKEN)
 
 # used for webhook
 app = fastapi.FastAPI(docs_url=None, )
+
+
 # process webhook calls
 @app.post(f'/{bconf.BOT_TOKEN}/')
 async def webhook_call(update: dict):

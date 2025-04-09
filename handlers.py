@@ -1,12 +1,14 @@
-
+import io
+import mimetypes
 import traceback
 from telebot.types import Message
 from md2tgmd import escape
 from google.genai import types
 
 import bconf
-from gemini import chat as gChat
-from gemini import async_generate_content as gContent
+from gemini import chat as gemini_chat
+from gemini import generate_content as gemini_content
+from gemini import split_and_send
 from bot import bot
 
 logger = bconf.logger
@@ -16,7 +18,6 @@ model_1 = bconf.models.get('model_1')
 model_2 = bconf.models.get('model_2')
 error_info = bconf.prompts.get('error_info')
 before_gen_info = bconf.prompts.get('before_generate_info')
-download_pic_notify = bconf.prompts.get('download_pic_notify')
 
 
 #  message handlers
@@ -45,7 +46,7 @@ async def gemini(message: Message) -> None:
             ),
             parse_mode="MarkdownV2")
         return
-    await gChat(bot, message, m, model_1)
+    await gemini_chat(bot, message, model_1)
 
 
 @bot.message_handler(commands=['gemini_pro'])
@@ -60,15 +61,15 @@ async def gemini_pro(message: Message) -> None:
             ),
             parse_mode="MarkdownV2")
         return
-    await gChat(bot, message, m, model_2)
+    await gemini_chat(bot, message, model_2)
 
 
 @bot.message_handler(commands=['clear'])
 async def clear(message: Message) -> None:
     # Check if the player is already in gemini_player_dict.
-    if (str(message.from_user.id) in bconf.gemini_chat_dict):
+    if str(message.from_user.id) in bconf.gemini_chat_dict:
         del bconf.gemini_chat_dict[str(message.from_user.id)]
-    if (str(message.from_user.id) in bconf.gemini_pro_chat_dict):
+    if str(message.from_user.id) in bconf.gemini_pro_chat_dict:
         del bconf.gemini_pro_chat_dict[str(message.from_user.id)]
     await bot.reply_to(message, "Your history has been cleared")
 
@@ -83,66 +84,114 @@ async def switch(message: Message) -> None:
         bconf.default_chat_dict[str(message.from_user.id)] = False
         await bot.reply_to(message, "Now you are using " + model_2)
         return
-    if bconf.default_chat_dict[str(message.from_user.id)] == True:
+    if bconf.default_chat_dict[str(message.from_user.id)]:
         bconf.default_chat_dict[str(message.from_user.id)] = False
         await bot.reply_to(message, "Now you are using " + model_2)
     else:
         bconf.default_chat_dict[str(message.from_user.id)] = True
         await bot.reply_to(message, "Now you are using " + model_1)
 
+
 #  handle all other text messages in private chat
 @bot.message_handler(func=lambda message: message.chat.type == "private", content_types=['text'])
 async def private_text_handler(message: Message) -> None:
-    m = message.text.strip()
-    from_who = message.from_user.id
-    if str(from_who) not in bconf.default_chat_dict:
-        bconf.default_chat_dict[str(from_who)] = True
-        await gChat(bot, message, m, model_1)
-    else:
-        if bconf.default_chat_dict[str(from_who)]:
-            await gChat(bot, message, m, model_1)
-        else:
-            await gChat(bot, message, m, model_2)
+    model = await choose_model(message.from_user.id)
+    await gemini_chat(bot, message, model)
+
+
+
 
 # handle group/channel '@' text chat
-@bot.message_handler(regexp=bconf.BOT_NAME, chat_types=['group','supergroup','channel'], content_types=['text'])
-async def group_at_text_handler(message:Message) -> None:
+@bot.message_handler(regexp=bconf.BOT_NAME, chat_types=['group', 'supergroup', 'channel'], content_types=['text'])
+async def group_at_text_handler(message: Message) -> None:
     logger.info(f'group chat @ed message received: {message.text.strip()}')
-    await private_text_handler(message)
+    # if group user does not start a private chat with bot,
+    # this handler will always use default model(model_1)
+    model = await choose_model(message.from_user.id)
+    await gemini_chat(bot, message, model)
+
+# content_types=['audio', 'photo', 'voice', 'video', 'document','text', 'location', 'contact', 'sticker']
+# handle pdf
+@bot.message_handler(func=lambda message: message.document.mime_type == 'application/pdf', content_types=['document'])
+async def document_handler(message: Message) -> None:
+    # logger.info(f'document message received: chat_type: {message.chat.type}, caption: {message.caption}')
+    return await handle_file(message)
+
 
 # image2text
-@bot.message_handler(content_types=['photo'])
+@bot.message_handler(func=lambda message: True, content_types=['photo'])
 async def image2text_handler(message: Message) -> None:
-    logger.info(f'image message received: chat_type: {message.chat.type}, caption: {message.caption}')
+    # logger.info(f'image message received: chat_type: {message.chat.type}, caption: {message.caption}')
+    return await handle_file(message)
+
+
+#  handle image and pdf
+async def handle_file(message: Message):
+    content_type = message.content_type
+    # logger.info(f"handle_file: content type is: {content_type}")
+    chat_type = message.chat.type
     caption = message.caption
-    if not caption or caption == "":
-        await bot.reply_to(message=message, text='Please add caption to the image, so that I can know what to do~')
-        return 
+    model = model_1
+    # you must add caption and start with '@bot' to invoke this function in group chat
+    if chat_type != 'private':
+        if not caption or not caption.startswith(bconf.BOT_NAME):
+            return
+        else: 
+            caption = caption.strip().split(maxsplit=1)[1].strip() if len(caption.strip().split(maxsplit=1)) > 1 else ""
+    else:
+        # if caption is not set in private chat...
+        if not caption or caption == '':
+            caption = bconf.DEFAULT_PROMPT_CN.get(content_type)
+    # choose a model?
+    model = await choose_model(message.from_user.id)
+    # load file
+    file_info =None
+    sent_message =''
+    file_bytes = None
+    mime_type = ''
     try:
-        file_path = await bot.get_file(message.photo[-1].file_id)
-        sent_message = await bot.reply_to(message, download_pic_notify)
-        #  base64 encoded str
-        downloaded_file = await bot.download_file(file_path.file_path)
+        if content_type == 'document':
+            file_info = await bot.get_file(message.document.file_id)
+            mime_type = message.document.mime_type
+        elif content_type == 'photo':
+            file_info = await bot.get_file(message.photo[-1].file_id)
+            mime_type= mimetypes.guess_type(file_info.file_path)[0]
+        elif content_type == 'video':
+            mime_type = message.video.mime_type
+        sent_message = await bot.reply_to(message=message, text=before_gen_info)
+        file_bytes = await bot.download_file(file_info.file_path)
     except Exception:
         traceback.print_exc()
         await bot.reply_to(message, error_info)
+    
+    # await file_path = bconf.FILE_PATH.format(bconf.BOT_TOKEN, file.file_path)
     contents = [
         types.Part.from_text(text=caption),
-        types.Part.from_bytes(data=downloaded_file, mime_type="image/jpeg")
+        types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
+        bconf.MODEL_INSTRUCTIONS
     ]
+    logger.info(f'content generating: file: {file_info.file_path}, caption: {caption}, model: {model}')
     try:
-        await bot.edit_message_text(before_gen_info,
-                                        chat_id=sent_message.chat.id,
-                                        message_id=sent_message.message_id)
-        response = await gContent(model_1, contents)
-        # logger.info(f'image2text gemini response: {response.text}')
-        await bot.edit_message_text(escape(response.text),
-                                        chat_id=sent_message.chat.id,
-                                        message_id=sent_message.message_id,
-                                        parse_mode='MarkdownV2')
-    except Exception:
+        response = await gemini_content(model, contents)
+        await split_and_send(bot,
+                             chat_id=sent_message.chat.id,
+                             text=response.text,
+                             message_id=sent_message.message_id,
+                             parse_mode='MarkdownV2')
+    except Exception as e:
         traceback.print_exc()
         await bot.edit_message_text(error_info,
-                                        chat_id=sent_message.chat.id,
-                                        message_id=sent_message.message_id)   
- 
+                                    chat_id=sent_message.chat.id,
+                                    message_id=sent_message.message_id)
+        
+async def choose_model(user_id:int) -> str:
+    # choose model to chat, based on content in bconf.default_chat_dict
+    if str(user_id) not in bconf.default_chat_dict:
+        # use model_1 by default
+        bconf.default_chat_dict[str(user_id)] = True
+        return model_1
+    else:
+        if bconf.default_chat_dict[str(user_id)]:
+            return model_1
+        else:
+            return model_2

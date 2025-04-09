@@ -13,10 +13,12 @@ model_1 = bconf.models.get('model_1')
 error_info = bconf.prompts.get('error_info')
 before_gen_info = bconf.prompts.get('before_generate_info')
 
+# init gemini client
 gClient = genai.Client(api_key=bconf.API_KEY)
 
-# Prevent "model.generate_content" function from blocking the event loop.
-async def async_generate_content(model, contents):
+
+# gemini content generation
+async def generate_content(model, contents):
     loop = asyncio.get_running_loop()
 
     def generate():
@@ -26,22 +28,41 @@ async def async_generate_content(model, contents):
     return response
 
 
-async def chat(bot: TeleBot, message: Message, m: str, model_type: str):
-    chat = None
-    if model_type == model_1:
+# new gen content method
+@DeprecationWarning
+async def new_gen_content(bot: TeleBot, msg: Message, model, contents): 
+    if model == model_1:
+        content_dict = bconf.gemini_content_dict
+    else:
+        content_dict = bconf.gemini_pro_content_dict
+    if str(msg.from_user.id) not in content_dict:
+        content_model = await gClient.models.generate_content(model=model, contents=contents)
+        content_dict[str(msg.from_user.id)] = content_model
+    
+    return
+
+# gemini chat
+async def chat(bot: TeleBot, msg: Message, model: str):
+    chats = None
+    m_text = msg.text.strip()
+    if m_text.startswith('/'):
+        # its a command
+        m_text = m_text.split(maxsplit=1)[1].strip()
+    if model == model_1:
         chat_dict = bconf.gemini_chat_dict
     else:
         chat_dict = bconf.gemini_pro_chat_dict
-    if str(message.from_user.id) not in chat_dict:
-        chat = gClient.aio.chats.create(model=model_type,
-                                              config=bconf.generation_config)
-        chat_dict[str(message.from_user.id)] = chat
+    if str(msg.from_user.id) not in chat_dict:
+        chats = gClient.aio.chats.create(model=model,
+                                         config=bconf.generation_config)
+        chat_dict[str(msg.from_user.id)] = chats
     else:
-        chat = chat_dict[str(message.from_user.id)]
+        chats = chat_dict[str(msg.from_user.id)]
     # new api does not support chat history
     try:
-        sent_message = await bot.reply_to(message, before_gen_info)
-        response = await chat.send_message(m)
+        sent_message = await bot.reply_to(msg, before_gen_info)
+        logger.info(f'chatting prompt: {m_text}, model: {model}')
+        response = await chats.send_message(m_text)
         try:
             await split_and_send(bot,
                                  chat_id=sent_message.chat.id,
@@ -69,8 +90,8 @@ async def split_and_send(bot,
                          text: str,
                          message_id=None,
                          parse_mode=None):
-    slice_size = 3072  #默认最长消息长度
-    slice_step = 384  #默认长度内没有换行符时，向后查询的步长
+    slice_size = 3072  # 默认最长消息长度
+    slice_step = 384  # 默认长度内没有换行符时，向后查询的步长
     segments = []
     start = 0
     # print(len(text))
@@ -79,7 +100,7 @@ async def split_and_send(bot,
         while start < len(text):
             end = min(start + slice_size, len(text))
             # (start, end)  ~ 3072
-            # find closest empty line
+            # find the closest empty line
             split_point = text.rfind('\n', start, end)
             # 没找到继续向后查找
             while split_point == -1 and end < len(text):
@@ -112,4 +133,3 @@ async def split_and_send(bot,
             await bot.send_message(chat_id,
                                    escape(segment),
                                    parse_mode=parse_mode)
-
