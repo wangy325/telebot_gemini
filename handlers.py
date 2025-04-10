@@ -1,17 +1,11 @@
 import asyncio
-import io
-import mimetypes
-import traceback
-from httpx import ConnectError
+import re
 from telebot.types import Message
 from md2tgmd import escape
-from google.genai import types
-from google.genai.errors import ServerError
 
 import bconf
 from gemini import chat as gemini_chat
-from gemini import generate_content as gemini_content
-from gemini import split_and_send
+from gemini import gen_text as gemini_gen_text
 from bot import bot
 
 logger = bconf.logger
@@ -22,6 +16,11 @@ model_2 = bconf.models.get('model_2')
 error_info = bconf.prompts.get('error_info')
 before_gen_info = bconf.prompts.get('before_generate_info')
 
+url_reg = '(.*)(https?://(?:www\\.)?[a-zA-Z0-9@:%._+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b[a-zA-Z0-9@:%_+.~#?&//=-]*)(.*)'
+yt_reg = 'https?://(www\\.)?(youtube\\.com/watch\\?v=|youtu\\.be/)[A-Za-z0-9_-]+'
+
+pattern_msg = re.compile(url_reg)
+pattern_yt =re.compile(yt_reg)
 
 #  message handlers
 @bot.message_handler(commands=['start'])
@@ -34,7 +33,7 @@ async def start(message: Message) -> None:
             ),
             parse_mode="MarkdownV2")
     except IndexError:
-        await bot.reply_to(message, error_info)
+        await del_err_message(message)
 
 
 @bot.message_handler(commands=['gemini'])
@@ -99,28 +98,76 @@ async def switch(message: Message) -> None:
 @bot.message_handler(func=lambda message: message.chat.type == "private", content_types=['text'])
 async def private_text_handler(message: Message) -> None:
     model = await choose_model(message.from_user.id)
-    await gemini_chat(bot, message, model)
-
-
+    text = message.text.strip()
+    rel = pattern_msg.match(text)
+    if not rel: 
+        # text does not contain url
+        await gemini_chat(bot, message, model)
+    else:
+        #  text contains url
+        is_caped = bool(rel.group(1)) or bool(rel.group(3))     # true for text + url
+        is_yt_url = bool(pattern_yt.match(rel.group(2)))        # true for yt url
+        if is_caped:
+            if is_yt_url:
+                caption = (rel.group(1) + rel.group(3)).strip()
+                await handle_youtube(message, caption)
+            else:
+                await gemini_chat(bot, message, model)
 
 
 # handle group/channel '@' text chat
 @bot.message_handler(regexp=bconf.BOT_NAME, chat_types=['group', 'supergroup', 'channel'], content_types=['text'])
 async def group_at_text_handler(message: Message) -> None:
+    """
+    Handle group/supergroup and channel chat response. Users must use `@bot` to start a chat.
+    
+    If group user does not start a private chat with bot, and use /switch to switch model first, 
+    this handler will always use default model.
+    
+    :param message: Instance of :class:`telebot.types.Message`
+    """
     logger.info(f'group chat @ed message received: {message.text.strip()}')
-    # if group user does not start a private chat with bot,
-    # this handler will always use default model(model_1)
     model = await choose_model(message.from_user.id)
-    await gemini_chat(bot, message, model)
+    
+    text = message.text.strip()
+    rel = pattern_msg.match(text)
+    if not rel: 
+        # text does not contain url
+        await gemini_chat(bot, message, model)
+    else:
+        #  text contains url
+        is_caped = bool(rel.group(1)) or bool(rel.group(3))     # true for text + url
+        is_yt_url = bool(pattern_yt.match(rel.group(2)))        # true for yt url
+        if is_caped:
+            if is_yt_url:
+                caption = (rel.group(1) + rel.group(3)).strip()
+                await handle_youtube(message, caption)
+            else:
+                await gemini_chat(bot, message, model)
+
 
 # content_types=['audio', 'photo', 'voice', 'video', 'document','text', 'location', 'contact', 'sticker']
-# image2text
 @bot.message_handler(func=lambda message: True, content_types=['photo', 'document', 'video', 'audio'])
 async def file_handler(message: Message) -> None:
     return await handle_file(message)
 
+
+async def handle_youtube(message:Message, caption:str):
+    url = pattern_yt.search(message.text.strip()).group()
+    model = await choose_model(message.from_user.id)
+    await gemini_gen_text(bot, message, caption, model, True, url=url)    
+
+
 #  handle files
-async def handle_file(message: Message):
+async def handle_file(message: Message, output_img: bool = False):
+    """
+        Handle file messages for bot
+        
+        :param message: Instance of :class:`telebot.types.Message`
+        
+        :param output_img: Is model output image or not, default `False`
+        :type : `bool`
+    """
     content_type = message.content_type
     chat_type = message.chat.type
     caption = message.caption
@@ -137,55 +184,8 @@ async def handle_file(message: Message):
             caption = bconf.DEFAULT_PROMPT_CN.get(content_type)
     # choose a model?
     model = await choose_model(message.from_user.id)
-    # load file
-    file_info =None
-    sent_message =''
-    file_bytes = None
-    mime_type = ''
-    try:
-        if content_type == 'document':
-            file_info = await bot.get_file(message.document.file_id)
-            mime_type = message.document.mime_type
-        elif content_type == 'photo':
-            file_info = await bot.get_file(message.photo[-1].file_id)
-            mime_type= mimetypes.guess_type(file_info.file_path)[0]
-        elif content_type == 'video':
-            file_info = await bot.get_file(message.video.file_id)
-            mime_type = message.video.mime_type
-        elif content_type == 'audio':
-            file_info = await bot.get_file(message.audio.file_id)
-            mime_type = message.audio.mime_type
-        sent_message = await bot.reply_to(message=message, text=before_gen_info)
-        file_bytes = await bot.download_file(file_info.file_path)
-    except Exception:
-        traceback.print_exc()
-        await del_err_message(sent_message, error_info)
-    
-    contents = [
-        types.Part.from_text(text=caption),
-        types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
-        bconf.MODEL_INSTRUCTIONS
-    ]
-    logger.info(f'content generating: file: {file_info.file_path}, caption: {caption}, model: {model}')
-    try:
-        response = await gemini_content(model, contents)
-        try:
-            await split_and_send(bot,
-                                chat_id=sent_message.chat.id,
-                                text=response.text,
-                                message_id=sent_message.message_id,
-                                parse_mode='MarkdownV2')
-        except Exception as e:
-            traceback.print_exc()
-            await del_err_message(sent_message, error_info)
-    except ServerError as e1:
-        # server 503
-        logger.error(f"Server error: code:{e1.code}, message: {e1.message}")
-        await del_err_message(sent_message, e1.message)
-    except ConnectError as e2:
-        # https error, ignore
-        logger.error('Internet Error')
-        await del_err_message(sent_message, 'Internet Error')
+    await gemini_gen_text(bot, message, caption, model)
+
         
 async def choose_model(user_id:int) -> str:
     # choose model to chat, based on content in bconf.default_chat_dict
@@ -199,11 +199,10 @@ async def choose_model(user_id:int) -> str:
         else:
             return model_2
 
-async def del_err_message(message: Message, err_info:str):
-    await bot.edit_message_text(
-            err_info,
-            chat_id=message.chat.id,
-            message_id=message.message_id
+async def del_err_message(message: Message, err_info:str = error_info):
+    msg = await bot.reply_to(
+            message,
+            err_info
         )
     await asyncio.sleep(30)
-    await bot.delete_message(message.chat.id, message.message_id)
+    await bot.delete_message(message.chat.id, msg.message_id)

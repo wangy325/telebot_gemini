@@ -1,9 +1,13 @@
 import asyncio
 import traceback
+import mimetypes
 from google import genai
 from telebot import TeleBot
 from telebot.types import Message
 from md2tgmd import escape
+from google.genai.errors import ServerError
+from google.genai import types
+from httpx import ConnectError
 import bconf
 
 logger = bconf.logger
@@ -17,29 +21,16 @@ before_gen_info = bconf.prompts.get('before_generate_info')
 gClient = genai.Client(api_key=bconf.API_KEY)
 
 
-# gemini content generation
-async def generate_content(model, contents):
-    loop = asyncio.get_running_loop()
+# # gemini content generation
+# async def generate_content(model:str, contents, config):
+#     loop = asyncio.get_running_loop()
 
-    def generate():
-        return gClient.models.generate_content(model=model, contents=contents)
+#     def generate():
+#         return gClient.models.generate_content(model=model, contents=contents)
 
-    response = await loop.run_in_executor(None, generate)
-    return response
+#     response = await loop.run_in_executor(None, generate)
+#     return response
 
-
-# new gen content method
-@DeprecationWarning
-async def new_gen_content(bot: TeleBot, msg: Message, model, contents): 
-    if model == model_1:
-        content_dict = bconf.gemini_content_dict
-    else:
-        content_dict = bconf.gemini_pro_content_dict
-    if str(msg.from_user.id) not in content_dict:
-        content_model = await gClient.models.generate_content(model=model, contents=contents)
-        content_dict[str(msg.from_user.id)] = content_model
-    
-    return
 
 # gemini chat
 async def chat(bot: TeleBot, msg: Message, model: str):
@@ -77,10 +68,95 @@ async def chat(bot: TeleBot, msg: Message, model: str):
 
     except Exception:
         traceback.print_exc()
-        await bot.edit_message_text(error_info,
-                                    chat_id=sent_message.chat.id,
-                                    message_id=sent_message.message_id)
+        await reply_and_del_err_message(bot, sent_message)
 
+# gemini generate content
+async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url_flag: bool = False, **kwargs) -> None:
+    """
+    Gemini content generation model.
+    
+    :param bot: Instance of :class:`telebot.TeleBot`
+    
+    :param message: Instance of :class:`telebot.types.Message`
+    
+    :param caption: `str` type file/image caption,  set while sending message
+    
+    :param model: gemini model name :class:`str`
+    
+    :param url_flag: `bool` value for online youtube video, default false
+    
+    :kwargs: Other necessary params like url='https://youtube.com'
+    """
+    file_info =None
+    sent_message =''
+    file_bytes = None
+    url = ''
+    mime_type = ''
+    content_type = message.content_type
+
+    # logger.info(f'content_type is : {content_type} ')
+    contents = {}
+    # load file
+    try:
+        if content_type != 'text':
+            if content_type == 'document':
+                file_info = await bot.get_file(message.document.file_id)
+                mime_type = message.document.mime_type
+            elif content_type == 'photo':
+                file_info = await bot.get_file(message.photo[-1].file_id)
+                mime_type= mimetypes.guess_type(file_info.file_path)[0]
+            elif content_type == 'video':
+                file_info = await bot.get_file(message.video.file_id)
+                mime_type = message.video.mime_type
+            elif content_type == 'audio':
+                file_info = await bot.get_file(message.audio.file_id)
+                mime_type = message.audio.mime_type
+            file_bytes = await bot.download_file(file_info.file_path)
+        else:
+            # its a url hard coded
+            url = kwargs.get('url')
+        sent_message = await bot.reply_to(message=message, text=before_gen_info)
+    except Exception:
+        traceback.print_exc()
+        await reply_and_del_err_message(bot, sent_message)
+
+    # await file_path = bconf.FILE_PATH.format(bconf.BOT_TOKEN, file.file_path)
+    types.FileData()
+    if url_flag:
+        contents = [
+            types.Part.from_text(text=caption),
+            types.Part.from_uri(file_uri=url, mime_type=mime_type)      #empty mime_type?
+        ]
+    else:
+        contents = [
+            types.Part.from_text(text=caption),
+            types.Part.from_bytes(data=file_bytes, mime_type=mime_type ),
+        ]
+
+    logger.info(f'content generating: file: {content_type}, caption: {caption}, model: {model}')
+    try:
+        # raise ServerError(code=503, response_json={'code': 503, 'message': 'Internet Server error message'})
+        # raise ConnectError('debug error')
+        response = gClient.models.generate_content(
+            model=model, contents=contents, config=bconf.generation_config)
+        try:
+            # logger.info(f'generated: {response.text}')
+            await split_and_send(bot,
+                                chat_id=sent_message.chat.id,
+                                text=response.text,
+                                message_id=sent_message.message_id,
+                                parse_mode='MarkdownV2')
+        except Exception as e:
+            traceback.print_exc()
+            await reply_and_del_err_message(bot, sent_message)
+    except ServerError as e1:
+        # server 503
+        logger.error(f"Server error: code:{e1.code}, message: {e1.message}")
+        await reply_and_del_err_message(bot, sent_message, e1.message)
+    except ConnectError as e2:
+        # https error, ignore
+        logger.error('Internet Error')
+        await reply_and_del_err_message(bot, sent_message, 'Internet Error')
 
 # tele_bot 400 error:   message too long
 # '你好！很高兴为你服务。有什么我可以帮你的吗？\n'
@@ -133,3 +209,13 @@ async def split_and_send(bot,
             await bot.send_message(chat_id,
                                    escape(segment),
                                    parse_mode=parse_mode)
+
+
+async def reply_and_del_err_message(bot: TeleBot, message: Message, err_info:str = error_info):
+    await bot.edit_message_text(
+            err_info,
+            chat_id=message.chat.id,
+            message_id=message.message_id
+        )
+    await asyncio.sleep(30)
+    await bot.delete_message(message.chat.id, message.message_id)
