@@ -1,8 +1,6 @@
-import fastapi
 import asyncio
 import uvicorn
 import telebot
-from telebot.async_telebot import AsyncTeleBot
 
 import bconf
 from bot import bot, app
@@ -46,4 +44,5 @@ async def init_bot():
 
 
 if __name__ == '__main__':
+    bconf.set_local_proxies()
     asyncio.run(init_bot())

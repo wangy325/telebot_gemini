@@ -71,7 +71,7 @@ MODEL_INSTRUCTIONS = [
 DEFAULT_PROMPT_EN = {
     "photo": "Please describe what you see in this picture. ",
     "document": "Please summarize this document for me. ",
-    "video": "Please summarize this video. " ,
+    "video": "Please summarize this video. ",
     "audio": "Please describe this audio clip."
 }
 
@@ -116,7 +116,7 @@ file_context = {}
 
 
 # for local debug only
-def setLocalProxies():
+def set_local_proxies():
     asyncio_helper.proxy = 'http://127.0.0.1:7890'
     os.environ['http_proxy'] = "http://127.0.0.1:7890"
     os.environ['https_proxy'] = "http://127.0.0.1:7890"

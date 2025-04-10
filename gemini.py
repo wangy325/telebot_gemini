@@ -21,23 +21,12 @@ before_gen_info = bconf.prompts.get('before_generate_info')
 gClient = genai.Client(api_key=bconf.API_KEY)
 
 
-# # gemini content generation
-# async def generate_content(model:str, contents, config):
-#     loop = asyncio.get_running_loop()
-
-#     def generate():
-#         return gClient.models.generate_content(model=model, contents=contents)
-
-#     response = await loop.run_in_executor(None, generate)
-#     return response
-
-
 # gemini chat
 async def chat(bot: TeleBot, msg: Message, model: str):
     chats = None
     m_text = msg.text.strip()
     if m_text.startswith('/'):
-        # its a command
+        # it's a command
         m_text = m_text.split(maxsplit=1)[1].strip()
     if model == model_1:
         chat_dict = bconf.gemini_chat_dict
@@ -70,6 +59,7 @@ async def chat(bot: TeleBot, msg: Message, model: str):
         traceback.print_exc()
         await reply_and_del_err_message(bot, sent_message)
 
+
 # gemini generate content
 async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url_flag: bool = False, **kwargs) -> None:
     """
@@ -87,8 +77,8 @@ async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url
     
     :kwargs: Other necessary params like url='https://youtube.com'
     """
-    file_info =None
-    sent_message =''
+    file_info = None
+    sent_message = ''
     file_bytes = None
     url = ''
     mime_type = ''
@@ -104,7 +94,7 @@ async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url
                 mime_type = message.document.mime_type
             elif content_type == 'photo':
                 file_info = await bot.get_file(message.photo[-1].file_id)
-                mime_type= mimetypes.guess_type(file_info.file_path)[0]
+                mime_type = mimetypes.guess_type(file_info.file_path)[0]
             elif content_type == 'video':
                 file_info = await bot.get_file(message.video.file_id)
                 mime_type = message.video.mime_type
@@ -113,7 +103,7 @@ async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url
                 mime_type = message.audio.mime_type
             file_bytes = await bot.download_file(file_info.file_path)
         else:
-            # its a url hard coded
+            # it's an url hard coded
             url = kwargs.get('url')
         sent_message = await bot.reply_to(message=message, text=before_gen_info)
     except Exception:
@@ -125,12 +115,12 @@ async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url
     if url_flag:
         contents = [
             types.Part.from_text(text=caption),
-            types.Part.from_uri(file_uri=url, mime_type=mime_type)      #empty mime_type?
+            types.Part.from_uri(file_uri=url, mime_type=mime_type)  # empty mime_type?
         ]
     else:
         contents = [
             types.Part.from_text(text=caption),
-            types.Part.from_bytes(data=file_bytes, mime_type=mime_type ),
+            types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
         ]
 
     logger.info(f'content generating: file: {content_type}, caption: {caption}, model: {model}')
@@ -142,10 +132,10 @@ async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url
         try:
             # logger.info(f'generated: {response.text}')
             await split_and_send(bot,
-                                chat_id=sent_message.chat.id,
-                                text=response.text,
-                                message_id=sent_message.message_id,
-                                parse_mode='MarkdownV2')
+                                 chat_id=sent_message.chat.id,
+                                 text=response.text,
+                                 message_id=sent_message.message_id,
+                                 parse_mode='MarkdownV2')
         except Exception as e:
             traceback.print_exc()
             await reply_and_del_err_message(bot, sent_message)
@@ -157,6 +147,7 @@ async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url
         # https error, ignore
         logger.error('Internet Error')
         await reply_and_del_err_message(bot, sent_message, 'Internet Error')
+
 
 # tele_bot 400 error:   message too long
 # '你好！很高兴为你服务。有什么我可以帮你的吗？\n'
@@ -211,11 +202,11 @@ async def split_and_send(bot,
                                    parse_mode=parse_mode)
 
 
-async def reply_and_del_err_message(bot: TeleBot, message: Message, err_info:str = error_info):
+async def reply_and_del_err_message(bot: TeleBot, message: Message, err_info: str = error_info):
     await bot.edit_message_text(
-            err_info,
-            chat_id=message.chat.id,
-            message_id=message.message_id
-        )
+        err_info,
+        chat_id=message.chat.id,
+        message_id=message.message_id
+    )
     await asyncio.sleep(30)
     await bot.delete_message(message.chat.id, message.message_id)
