@@ -21,15 +21,15 @@ before_gen_info = bconf.prompts.get('before_generate_info')
 gClient = genai.Client(api_key=bconf.API_KEY)
 
 
-# gemini content generation
-async def generate_content(model:str, contents, config):
-    loop = asyncio.get_running_loop()
+# # gemini content generation
+# async def generate_content(model:str, contents, config):
+#     loop = asyncio.get_running_loop()
 
-    def generate():
-        return gClient.models.generate_content(model=model, contents=contents)
+#     def generate():
+#         return gClient.models.generate_content(model=model, contents=contents)
 
-    response = await loop.run_in_executor(None, generate)
-    return response
+#     response = await loop.run_in_executor(None, generate)
+#     return response
 
 
 # gemini chat
@@ -70,44 +70,75 @@ async def chat(bot: TeleBot, msg: Message, model: str):
         traceback.print_exc()
         await reply_and_del_err_message(bot, sent_message)
 
-# gemini generate text content
-async def gen_text(bot: TeleBot, message: Message, caption: str, model: str) -> None:
+# gemini generate content
+async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url_flag: bool = False, **kwargs) -> None:
+    """
+    Gemini content generation model.
+    
+    :param bot: Instance of :class:`telebot.TeleBot`
+    
+    :param message: Instance of :class:`telebot.types.Message`
+    
+    :param caption: `str` type file/image caption,  set while sending message
+    
+    :param model: gemini model name :class:`str`
+    
+    :param url_flag: `bool` value for online youtube video, default false
+    
+    :kwargs: Other necessary params like url='https://youtube.com'
+    """
     file_info =None
     sent_message =''
     file_bytes = None
+    url = ''
     mime_type = ''
     content_type = message.content_type
+
+    logger.info(f'content_type is : {content_type} ')
+    contents = {}
     # load file
     try:
-        if content_type == 'document':
-            file_info = await bot.get_file(message.document.file_id)
-            mime_type = message.document.mime_type
-        elif content_type == 'photo':
-            file_info = await bot.get_file(message.photo[-1].file_id)
-            mime_type= mimetypes.guess_type(file_info.file_path)[0]
-        elif content_type == 'video':
-            file_info = await bot.get_file(message.video.file_id)
-            mime_type = message.video.mime_type
-        elif content_type == 'audio':
-            file_info = await bot.get_file(message.audio.file_id)
-            mime_type = message.audio.mime_type
+        if content_type != 'text':
+            if content_type == 'document':
+                file_info = await bot.get_file(message.document.file_id)
+                mime_type = message.document.mime_type
+            elif content_type == 'photo':
+                file_info = await bot.get_file(message.photo[-1].file_id)
+                mime_type= mimetypes.guess_type(file_info.file_path)[0]
+            elif content_type == 'video':
+                file_info = await bot.get_file(message.video.file_id)
+                mime_type = message.video.mime_type
+            elif content_type == 'audio':
+                file_info = await bot.get_file(message.audio.file_id)
+                mime_type = message.audio.mime_type
+            file_bytes = await bot.download_file(file_info.file_path)
+        else:
+            # its a url hard coded
+            url = kwargs.get('url')
         sent_message = await bot.reply_to(message=message, text=before_gen_info)
-        file_bytes = await bot.download_file(file_info.file_path)
     except Exception:
         traceback.print_exc()
         await reply_and_del_err_message(bot, sent_message)
-    
+
     # await file_path = bconf.FILE_PATH.format(bconf.BOT_TOKEN, file.file_path)
-    contents = [
-        types.Part.from_text(text=caption),
-        types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
-        bconf.MODEL_INSTRUCTIONS
-    ]
-    logger.info(f'content generating: file: {file_info.file_path}, caption: {caption}, model: {model}')
+    types.FileData()
+    if url_flag:
+        contents = [
+            types.Part.from_text(text=caption),
+            types.Part.from_uri(file_uri=url, mime_type=mime_type)      #empty mime_type?
+        ]
+    else:
+        contents = [
+            types.Part.from_text(text=caption),
+            types.Part.from_bytes(data=file_bytes, mime_type=mime_type ),
+        ]
+
+    logger.info(f'content generating: file: {content_type}, caption: {caption}, model: {model}')
     try:
         # raise ServerError(code=503, response_json={'code': 503, 'message': 'Internet Server error message'})
         # raise ConnectError('debug error')
-        response = gClient.models.generate_content(model=model, contents=contents)
+        response = gClient.models.generate_content(
+            model=model, contents=contents, config=bconf.generation_config)
         try:
             # logger.info(f'generated: {response.text}')
             await split_and_send(bot,
