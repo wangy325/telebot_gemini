@@ -31,7 +31,7 @@ parser.add_argument("--token",
 parser.add_argument("--key",
                     help="Google Gemini API key",
                     default=os.environ.get("API_KEY"))
-parser.add_argument("--botName",
+parser.add_argument("--botname",
                     help="telegram bot name",
                     default=os.environ.get("BOT_NAME"))
 parser.add_argument("--webhook",
@@ -48,12 +48,12 @@ if not args.key:
         "--key is required. Please provide it as a command-line argument or set the API_KEY environment variable. "
     )
 API_KEY = args.key
-if not args.botName:
+if not args.botname:
     logger.warning(
         "--botName is not provided. Using default value '@wygemibot'. You have to set it if you want deploy your own "
         "bot with full features work fine."
     )
-BOT_NAME = args.botName or '@wygemibot'
+BOT_NAME = args.botname or '@wygemibot'
 WEB_HOOK = args.webhook or None
 WEBHOOK_PORT = 8443
 WEBHOOK_LISTEN = '0.0.0.0'
