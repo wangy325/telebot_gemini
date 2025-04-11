@@ -2,7 +2,8 @@ import asyncio
 import traceback
 import mimetypes
 from google import genai
-from telebot import TeleBot
+from google.genai.types import GenerateContentResponse
+from telebot.async_telebot import AsyncTeleBot
 from telebot.types import Message
 from md2tgmd import escape
 from google.genai.errors import ServerError
@@ -22,7 +23,7 @@ gClient = genai.Client(api_key=bconf.API_KEY)
 
 
 # gemini chat
-async def chat(bot: TeleBot, msg: Message, model: str):
+async def chat(bot: AsyncTeleBot, msg: Message, model: str):
     chats = None
     m_text = msg.text.strip()
     if m_text.startswith('/'):
@@ -33,39 +34,29 @@ async def chat(bot: TeleBot, msg: Message, model: str):
     else:
         chat_dict = bconf.gemini_pro_chat_dict
     if str(msg.from_user.id) not in chat_dict:
-        chats = gClient.aio.chats.create(model=model,
-                                         config=bconf.generation_config)
+        chats = gClient.aio.chats.create(model=model, config=bconf.generation_config)
         chat_dict[str(msg.from_user.id)] = chats
     else:
         chats = chat_dict[str(msg.from_user.id)]
-    # new api does not support chat history
+    sent_message = await bot.reply_to(msg, before_gen_info)
+    logger.info(f'chatting prompt: {m_text}, model: {model}')
+    response = None
+    # TODO: handle exception more elegant
     try:
-        sent_message = await bot.reply_to(msg, before_gen_info)
-        logger.info(f'chatting prompt: {m_text}, model: {model}')
         response = await chats.send_message(m_text)
-        try:
-            await split_and_send(bot,
-                                 chat_id=sent_message.chat.id,
-                                 text=response.text,
-                                 message_id=sent_message.message_id,
-                                 parse_mode="MarkdownV2")
-        except:
-            await split_and_send(bot,
-                                 chat_id=sent_message.chat.id,
-                                 text=response.text,
-                                 message_id=sent_message.message_id)
-
     except Exception:
         traceback.print_exc()
         await reply_and_del_err_message(bot, sent_message)
+    await split_and_send(bot, sent_message, response)
 
 
 # gemini generate content
-async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url_flag: bool = False, **kwargs) -> None:
+async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str, url_flag: bool = False,
+                   **kwargs) -> None:
     """
     Gemini content generation model.
     
-    :param bot: Instance of :class:`telebot.TeleBot`
+    :param bot: Instance of :class:`telebot.async_telebot.AsyncTeleBot`
     
     :param message: Instance of :class:`telebot.types.Message`
     
@@ -73,9 +64,9 @@ async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url
     
     :param model: gemini model name :class:`str`
     
-    :param url_flag: `bool` value for online youtube video, default false
+    :param url_flag: `bool` value for online YouTube video, default false
     
-    :kwargs: Other necessary params like url='https://youtube.com'
+    :kwargs: Other necessary params like url='https://youtube.com/watch?v=GqybdMKEf5s'
     """
     file_info = None
     sent_message = ''
@@ -84,8 +75,7 @@ async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url
     mime_type = ''
     content_type = message.content_type
 
-    # logger.info(f'content_type is : {content_type} ')
-    contents = {}
+    # TODO: handle exceptions more elegant
     # load file
     try:
         if content_type != 'text':
@@ -110,8 +100,7 @@ async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url
         traceback.print_exc()
         await reply_and_del_err_message(bot, sent_message)
 
-    # await file_path = bconf.FILE_PATH.format(bconf.BOT_TOKEN, file.file_path)
-    types.FileData()
+    # TODO: url content part has empty mime type
     if url_flag:
         contents = [
             types.Part.from_text(text=caption),
@@ -124,46 +113,42 @@ async def gen_text(bot: TeleBot, message: Message, caption: str, model: str, url
         ]
 
     logger.info(f'content generating: file: {content_type}, caption: {caption}, model: {model}')
+    response = None
     try:
         # raise ServerError(code=503, response_json={'code': 503, 'message': 'Internet Server error message'})
         # raise ConnectError('debug error')
-        response = gClient.models.generate_content(
+        response = await gClient.aio.models.generate_content(
             model=model, contents=contents, config=bconf.generation_config)
-        try:
-            # logger.info(f'generated: {response.text}')
-            await split_and_send(bot,
-                                 chat_id=sent_message.chat.id,
-                                 text=response.text,
-                                 message_id=sent_message.message_id,
-                                 parse_mode='MarkdownV2')
-        except Exception as e:
-            traceback.print_exc()
-            await reply_and_del_err_message(bot, sent_message)
     except ServerError as e1:
         # server 503
         logger.error(f"Server error: code:{e1.code}, message: {e1.message}")
         await reply_and_del_err_message(bot, sent_message, e1.message)
     except ConnectError as e2:
         # https error, ignore
-        logger.error('Internet Error')
+        logger.error(f'ConnectError occurred: {e2}\n{traceback.format_exc()}')
         await reply_and_del_err_message(bot, sent_message, 'Internet Error')
+    # logger.info(f'generated: {response.text}')
+    await split_and_send(bot, sent_message, response)
 
 
 # tele_bot 400 error:   message too long
 # '你好！很高兴为你服务。有什么我可以帮你的吗？\n'
 # split long response to multiple messages
-async def split_and_send(bot,
-                         chat_id,
-                         text: str,
-                         message_id=None,
-                         parse_mode=None):
+async def split_and_send(bot: AsyncTeleBot,
+                         message: Message,
+                         response: GenerateContentResponse,
+                         parse_mode='MarkdownV2', ):
     slice_size = 3072  # 默认最长消息长度
-    slice_step = 384  # 默认长度内没有换行符时，向后查询的步长
+    slice_step = 512  # 默认长度内没有换行符时，向后查询的步长
     segments = []
     start = 0
-    # print(len(text))
-
-    if len(text) > slice_size:
+    text = response.text
+    # logger.info(f'response content: {response}')
+    if text is None:
+        logger.error(f'APIError: response is None')
+        await reply_and_del_err_message(bot, message, 'API Error: response text is None!')
+        return
+    elif len(text) > slice_size:
         while start < len(text):
             end = min(start + slice_size, len(text))
             # (start, end)  ~ 3072
@@ -174,39 +159,57 @@ async def split_and_send(bot,
                 i_start = end
                 end = min(end + slice_step, len(text))
                 split_point = text.rfind('\n', i_start, end)
-                # print(f"inner: {end} ")
 
-            # print(f"outer: {split_point} ")
-            if split_point - start > slice_size:
-                segment = text[start:split_point + 2]
-                start = split_point + 2
-            elif slice_size > split_point - start > 0:
+            if split_point == -1:
+                # force spilt?
+                # find last end of sentence may be a better way
+                segment = text[start:end]
+                start = end
+            else:
                 segment = text[start:split_point + 1]
                 start = split_point + 1
-            else:  # split_point = -1
-                segment = text[start:end]
-                break  # Prevent infinite loop if no split point is found
             segments.append(segment)
     else:
         segments.append(text)
-    logger.info(segments)
-    for index, segment in enumerate(segments):
-        if index == 0 and message_id:
-            await bot.edit_message_text(escape(segment),
-                                        chat_id=chat_id,
-                                        message_id=message_id,
-                                        parse_mode=parse_mode)
-        else:
-            await bot.send_message(chat_id,
-                                   escape(segment),
-                                   parse_mode=parse_mode)
+    logger.info(f'Response segments count: {len(segments)}')
+    s_parse_mode = None
+    try:
+        await bot.edit_message_text(escape(segments[0]),
+                                    chat_id=message.chat.id,
+                                    message_id=message.message_id,
+                                    parse_mode=parse_mode)
+        s_parse_mode = parse_mode
+    except Exception as oe:
+        # (reply)edit message error, maybe parse_mode error or network error
+        logger.warning(f'Edit message text error, will retry in normal mode: {oe}\n{traceback.format_exc()}')
+        try:
+            await bot.edit_message_text(segments[0],
+                                        chat_id=message.chat.id,
+                                        message_id=message.message_id)
+        except Exception as ie:
+            logger.error(f'Edit message text error: {ie}\n{traceback.format_exc()}')
+            await reply_and_del_err_message(bot, message)
+
+    for segment in segments[1:]:
+        try:
+            await bot.send_message(message.chat.id, escape(segment), parse_mode=s_parse_mode)
+        except Exception as oe:
+            logger.error(f'Send message error, will retry: {oe}\n{traceback.format_exc()}')
+            try:
+                await bot.send_message(message.chat.id, escape(segment), parse_mode=s_parse_mode)
+            except Exception as ie:
+                logger.error(f'Send message error: {ie}\n{traceback.format_exc()}')
+                await reply_and_del_err_message(bot, message)
 
 
-async def reply_and_del_err_message(bot: TeleBot, message: Message, err_info: str = error_info):
-    await bot.edit_message_text(
-        err_info,
-        chat_id=message.chat.id,
-        message_id=message.message_id
-    )
-    await asyncio.sleep(30)
-    await bot.delete_message(message.chat.id, message.message_id)
+async def reply_and_del_err_message(bot: AsyncTeleBot, message: Message, err_info: str = error_info):
+    try:
+        await bot.edit_message_text(
+            err_info,
+            chat_id=message.chat.id,
+            message_id=message.message_id
+        )
+        await asyncio.sleep(30)
+        await bot.delete_message(message.chat.id, message.message_id)
+    except Exception as e:
+        logger.error(f'Error on deleting message: {e}\n{traceback.format_exc()}')
