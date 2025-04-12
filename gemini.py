@@ -1,6 +1,9 @@
 import asyncio
 import traceback
 import mimetypes
+import re
+import random
+
 from google import genai
 from google.genai.types import GenerateContentResponse
 from telebot.async_telebot import AsyncTeleBot
@@ -17,6 +20,9 @@ logger.name = __name__
 model_1 = bconf.models.get('model_1')
 error_info = bconf.prompts.get('error_info')
 before_gen_info = bconf.prompts.get('before_generate_info')
+pattern = r"[?.!？。！]"
+max_retries = 3
+base_delay = 1
 
 # init gemini client
 gClient = genai.Client(api_key=bconf.API_KEY)
@@ -39,14 +45,13 @@ async def chat(bot: AsyncTeleBot, msg: Message, model: str):
     else:
         chats = chat_dict[str(msg.from_user.id)]
     sent_message = await bot.reply_to(msg, before_gen_info)
-    logger.info(f'chatting prompt: {m_text}, model: {model}')
-    response = None
-    # TODO: handle exception more elegant
+    logger.info(f'Chat prompt: {m_text}, model: {model}')
     try:
         response = await chats.send_message(m_text)
-    except Exception:
-        traceback.print_exc()
-        await reply_and_del_err_message(bot, sent_message)
+    except Exception as e:
+        logger.error(f'APIError: response error. {e}\n{traceback.format_exc()}')
+        await reply_and_del_err_message(bot, sent_message, 'API response error')
+        return
     await split_and_send(bot, sent_message, response)
 
 
@@ -75,7 +80,6 @@ async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str
     mime_type = ''
     content_type = message.content_type
 
-    # TODO: handle exceptions more elegant
     # load file
     try:
         if content_type != 'text':
@@ -96,9 +100,10 @@ async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str
             # it's an url hard coded
             url = kwargs.get('url')
         sent_message = await bot.reply_to(message=message, text=before_gen_info)
-    except Exception:
-        traceback.print_exc()
+    except Exception as e:
+        logger.error(f'File Error: {e}\n{traceback.format_exc()}')
         await reply_and_del_err_message(bot, sent_message)
+        return
 
     # TODO: url content part has empty mime type
     if url_flag:
@@ -161,8 +166,12 @@ async def split_and_send(bot: AsyncTeleBot,
                 split_point = text.rfind('\n', i_start, end)
 
             if split_point == -1:
-                # force spilt?
                 # find last end of sentence may be a better way
+                # fixed_end = end
+                # for i in range(end - 1, start - 1, -1):
+                #     if re.match(pattern, text[i]):
+                #         fixed_end = i
+                #         break
                 segment = text[start:end]
                 start = end
             else:
@@ -172,33 +181,39 @@ async def split_and_send(bot: AsyncTeleBot,
     else:
         segments.append(text)
     logger.info(f'Response segments count: {len(segments)}')
-    s_parse_mode = None
-    try:
-        await bot.edit_message_text(escape(segments[0]),
-                                    chat_id=message.chat.id,
-                                    message_id=message.message_id,
-                                    parse_mode=parse_mode)
-        s_parse_mode = parse_mode
-    except Exception as oe:
-        # (reply)edit message error, maybe parse_mode error or network error
-        logger.warning(f'Edit message text error, will retry in normal mode: {oe}\n{traceback.format_exc()}')
-        try:
-            await bot.edit_message_text(segments[0],
-                                        chat_id=message.chat.id,
-                                        message_id=message.message_id)
-        except Exception as ie:
-            logger.error(f'Edit message text error: {ie}\n{traceback.format_exc()}')
-            await reply_and_del_err_message(bot, message)
+
+    # retry if network error occurs
+    await send_and_retry_message(bot, message, segments[0], parse_mode)
 
     for segment in segments[1:]:
+        await send_and_retry_message(bot, message, segment, parse_mode, 'new')
+
+
+async def send_and_retry_message(bot: AsyncTeleBot, message: Message, text: str, parse_mode='MarkdownV2', mode='reply'):
+    """
+    send/reply message(s) with retry mach
+
+    param: mode: str of message mode, default 'reply'
+    """
+    for attempt in range(max_retries):
         try:
-            await bot.send_message(message.chat.id, escape(segment), parse_mode=s_parse_mode)
+            if mode == 'reply':
+                await bot.edit_message_text(escape(text),
+                                            chat_id=message.chat.id,
+                                            message_id=message.message_id,
+                                            parse_mode=parse_mode)
+            else:
+                await bot.send_message(message.chat.id, escape(text), parse_mode=parse_mode)
+            break
         except Exception as oe:
+            # (reply)edit message error, maybe (parse_mode error)? or network error
             logger.error(f'Send message error, will retry: {oe}\n{traceback.format_exc()}')
-            try:
-                await bot.send_message(message.chat.id, escape(segment), parse_mode=s_parse_mode)
-            except Exception as ie:
-                logger.error(f'Send message error: {ie}\n{traceback.format_exc()}')
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                logger.info(f'Send message error, will retry in {delay} seconds')
+                await asyncio.sleep(delay)
+            else:
+                logger.error(f'Maximum retries reached, Send message ERROR')
                 await reply_and_del_err_message(bot, message)
 
 

@@ -46,3 +46,7 @@ async def init_bot():
 if __name__ == '__main__':
     bconf.set_local_proxies()
     asyncio.run(init_bot())
+
+# test cmd:
+# python .\main.py --key AIzaSyDIn00nCYnxnJVip2J39BGyrcvKRVBwpcE
+# --token 7684873575:AAEO5_2kWfOvXFeaTU2S1irqTKRtKMU9A4E --botname '@wyDevBot'

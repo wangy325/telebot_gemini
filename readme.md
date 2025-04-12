@@ -104,3 +104,9 @@ service created.
    4. video clips
    5. YouTube video links (unstable)
 
+
+## TOTO
+
+- [ ] handle reply messages~
+- [ ] context of content generation
+- [ ] split markdown
