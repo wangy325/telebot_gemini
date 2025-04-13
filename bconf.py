@@ -65,7 +65,7 @@ FILE_PATH = "https://api.telegram.org/file/bot{}/{}"
 # model instructions
 MODEL_INSTRUCTIONS = [
         "你是一个倾向于使用中文回答问题的AI助理",
-        "You are a AI assistant who always intend to answer question in Chinese.",
+        "You are a AI assistant who always intend to answer questions in Chinese.",
         "Once you are asked in English, that means you are expected to reply in English."
 ]
 DEFAULT_PROMPT_EN = {
@@ -103,9 +103,10 @@ generation_config = types.GenerateContentConfig(
     system_instruction=MODEL_INSTRUCTIONS
 )
 
-#  chat model cache 
+# model context cache
 gemini_chat_dict = {}
 gemini_pro_chat_dict = {}
+# used model cache
 default_chat_dict = {}
 # content generate cache
 gemini_content_dict = {}

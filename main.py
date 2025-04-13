@@ -13,7 +13,7 @@ logger.name = __name__
 
 async def init_bot():
     try:
-        await bot.delete_my_commands(scope=None, language_code=None)
+        await bot.delete_my_commands()
         await bot.set_my_commands(commands=[
             telebot.types.BotCommand("start", "Start"),
             telebot.types.BotCommand("gemini", "Using gemini-2.0-flash-exp"),
@@ -46,7 +46,3 @@ async def init_bot():
 if __name__ == '__main__':
     bconf.set_local_proxies()
     asyncio.run(init_bot())
-
-# test cmd:
-# python .\main.py --key AIzaSyDIn00nCYnxnJVip2J39BGyrcvKRVBwpcE
-# --token 7684873575:AAEO5_2kWfOvXFeaTU2S1irqTKRtKMU9A4E --botname '@wyDevBot'

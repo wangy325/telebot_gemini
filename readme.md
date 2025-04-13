@@ -108,5 +108,5 @@ service created.
 ## TOTO
 
 - [ ] handle reply messages~
-- [ ] context of content generation
+- [x] context of content generation
 - [ ] split markdown

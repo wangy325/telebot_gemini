@@ -157,7 +157,6 @@ async def handle_file(message: Message, output_img: bool = False):
     content_type = message.content_type
     chat_type = message.chat.type
     caption = message.caption
-    model = model_1
     # you must add caption and start with '@bot' to invoke this function in group chat
     if chat_type != 'private':
         if not caption or not caption.startswith(bconf.BOT_NAME):
@@ -173,7 +172,7 @@ async def handle_file(message: Message, output_img: bool = False):
     await gemini_gen_text(bot, message, caption, model)
 
 
-async def choose_model(user_id:int) -> str:
+async def choose_model(user_id: int) -> str:
     # choose model to chat, based on content in bconf.default_chat_dict
     if str(user_id) not in bconf.default_chat_dict:
         # use model_1 by default
@@ -186,7 +185,7 @@ async def choose_model(user_id:int) -> str:
             return model_2
 
 
-async def del_err_message(message: Message, err_info:str = error_info):
+async def del_err_message(message: Message, err_info: str = error_info):
     msg = await bot.reply_to(
             message,
             err_info

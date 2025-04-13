@@ -5,6 +5,7 @@ import re
 import random
 
 from google import genai
+from google.genai.chats import AsyncChat
 from google.genai.types import GenerateContentResponse
 from telebot.async_telebot import AsyncTeleBot
 from telebot.types import Message
@@ -18,6 +19,7 @@ logger = bconf.logger
 logger.name = __name__
 
 model_1 = bconf.models.get('model_1')
+model_2 = bconf.models.get('model_2')
 error_info = bconf.prompts.get('error_info')
 before_gen_info = bconf.prompts.get('before_generate_info')
 pattern = r"[?.!？。！]"
@@ -28,9 +30,22 @@ base_delay = 1
 gClient = genai.Client(api_key=bconf.API_KEY)
 
 
+# gen gemini chat model
+async def creat_chats(model: str) -> AsyncChat:
+    loop = asyncio.get_event_loop()
+
+    def create_chat_model():
+        return gClient.aio.chats.create(model=model,
+                                        config=bconf.generation_config,
+                                        history=[types.Content(
+                                            role='user',
+                                            parts=[types.Part.from_text(text=bconf.MODEL_INSTRUCTIONS[1]),],
+                                        )])
+    return await loop.run_in_executor(None, create_chat_model)
+
+
 # gemini chat
 async def chat(bot: AsyncTeleBot, msg: Message, model: str):
-    chats = None
     m_text = msg.text.strip()
     if m_text.startswith('/'):
         # it's a command
@@ -40,14 +55,15 @@ async def chat(bot: AsyncTeleBot, msg: Message, model: str):
     else:
         chat_dict = bconf.gemini_pro_chat_dict
     if str(msg.from_user.id) not in chat_dict:
-        chats = gClient.aio.chats.create(model=model, config=bconf.generation_config)
-        chat_dict[str(msg.from_user.id)] = chats
+        chat_model = await creat_chats(model)
+        chat_dict[str(msg.from_user.id)] = chat_model
     else:
-        chats = chat_dict[str(msg.from_user.id)]
+        chat_model = chat_dict[str(msg.from_user.id)]
     sent_message = await bot.reply_to(msg, before_gen_info)
     logger.info(f'Chat prompt: {m_text}, model: {model}')
     try:
-        response = await chats.send_message(m_text)
+        response = await chat_model.send_message(m_text)
+        logger.info(f'Chat response: {response.candidates[0].content}')
     except Exception as e:
         logger.error(f'APIError: response error. {e}\n{traceback.format_exc()}')
         await reply_and_del_err_message(bot, sent_message, 'API response error')
@@ -117,13 +133,19 @@ async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str
             types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
         ]
 
-    logger.info(f'content generating: file: {content_type}, caption: {caption}, model: {model}')
+    logger.info(f'Content generation: file type: {content_type}, caption: {caption}, model: {model}')
     response = None
     try:
-        # raise ServerError(code=503, response_json={'code': 503, 'message': 'Internet Server error message'})
         # raise ConnectError('debug error')
+        # raise ServerError(code=503,
+        #                   response_json={'code': 503, 'message': 'Internet Server error message'}
+        #                   )
         response = await gClient.aio.models.generate_content(
             model=model, contents=contents, config=bconf.generation_config)
+        # record this response to chats history if there is a chat
+        logger.info(f'Content generation response: {response.candidates[0].content}')
+        await record_response(message, response, model)
+
     except ServerError as e1:
         # server 503
         logger.error(f"Server error: code:{e1.code}, message: {e1.message}")
@@ -132,7 +154,6 @@ async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str
         # https error, ignore
         logger.error(f'ConnectError occurred: {e2}\n{traceback.format_exc()}')
         await reply_and_del_err_message(bot, sent_message, 'Internet Error')
-    # logger.info(f'generated: {response.text}')
     await split_and_send(bot, sent_message, response)
 
 
@@ -148,7 +169,6 @@ async def split_and_send(bot: AsyncTeleBot,
     segments = []
     start = 0
     text = response.text
-    # logger.info(f'response content: {response}')
     if text is None:
         logger.error(f'APIError: response is None')
         await reply_and_del_err_message(bot, message, 'API Error: response text is None!')
@@ -187,6 +207,33 @@ async def split_and_send(bot: AsyncTeleBot,
 
     for segment in segments[1:]:
         await send_and_retry_message(bot, message, segment, parse_mode, 'new')
+
+
+# record model response content to chat history
+async def record_response(message: Message, response: GenerateContentResponse, model: str):
+    cached_chat = None
+    if model == model_1:
+        cached_chat = bconf.gemini_chat_dict.get(str(message.from_user.id))
+    elif model == model_2:
+        cached_chat = bconf.gemini_pro_chat_dict.get(str(message.from_user.id))
+    if cached_chat is None:
+        cached_chat = await creat_chats(model)
+        if model == model_1:
+            bconf.gemini_chat_dict[str(message.from_user.id)] = cached_chat
+        elif model == model_2:
+            bconf.gemini_pro_chat_dict[str(message.from_user.id)] = cached_chat
+    try:
+        # ping and no pong
+        sent_message: GenerateContentResponse = await cached_chat.send_message('你好')
+        curated_history = cached_chat.get_history(True)
+        res_content = response.candidates[0].content
+        cached_chat.record_history(
+            res_content,
+            curated_history,
+            sent_message.automatic_function_calling_history,
+            True)
+    except Exception as e:
+        logger.error(f'Record response error: {e}\n{traceback.format_exc()}')
 
 
 async def send_and_retry_message(bot: AsyncTeleBot, message: Message, text: str, parse_mode='MarkdownV2', mode='reply'):
