@@ -6,9 +6,13 @@ import bconf
 from bot import bot, app
 # import to register handlers
 import handlers
+import pydevd_pycharm
 
 logger = bconf.logger
 logger.name = __name__
+
+# local debug
+pydevd_pycharm.settrace('localhost', port=12345, suspend=False, stdoutToServer=True, stderrToServer=True)
 
 
 async def init_bot():

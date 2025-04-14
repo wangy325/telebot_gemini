@@ -139,6 +139,7 @@ async def handel_text_message(message):
                 caption = (rel.group(1) + rel.group(3)).strip()
                 url = pattern_yt.search(message.text.strip()).group()
                 model = await choose_model(message.from_user.id)
+                # analyse YouTube video url
                 await gemini_gen_text(bot, message, caption, model, True, url=url)
             else:
                 await gemini_chat(bot, message, model)
