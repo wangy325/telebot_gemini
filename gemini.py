@@ -65,7 +65,7 @@ async def chat(bot: AsyncTeleBot, msg: Message, model: str):
     logger.info(f'Chat prompt: {m_text}, model: {model}')
     try:
         response = await chat_model.send_message(m_text)
-        logger.info(f'Chat response: {response.text}')
+        # logger.info(f'Chat response: {response.text}')
     except Exception as e:
         logger.error(f'APIError: response error. {e}\n{traceback.format_exc()}')
         await reply_and_del_err_message(bot, sent_message, 'API response error')
@@ -147,7 +147,7 @@ async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str
         response = await gClient.aio.models.generate_content(
             model=model, contents=contents, config=bconf.generation_config)
         # record this response to chats history if there is a chat
-        logger.info(f'Content generation response: {response.candidates[0].content}')
+        # logger.info(f'Content generation response: {response.candidates[0].content}')
         await record_response(message, response, model)
 
     except ServerError as e1:
