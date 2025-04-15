@@ -4,12 +4,11 @@ from telebot.types import Message
 from md2tgmd import escape
 
 import bconf
+from bconf import logger
 from gemini import chat as gemini_chat
 from gemini import gen_text as gemini_gen_text
 from bot import bot
 
-logger = bconf.logger
-logger.name = __name__
 
 model_1 = bconf.models.get('model_1')
 model_2 = bconf.models.get('model_2')
@@ -26,7 +25,7 @@ pattern_yt = re.compile(yt_reg)
 
 #  message handlers
 @bot.message_handler(commands=['start'])
-async def start(message: Message) -> None:
+async def cmd_start(message: Message) -> None:
     try:
         await bot.reply_to(
             message,
@@ -39,7 +38,7 @@ async def start(message: Message) -> None:
 
 
 @bot.message_handler(commands=['gemini'])
-async def gemini(message: Message) -> None:
+async def cmd_gemini(message: Message) -> None:
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
@@ -54,7 +53,7 @@ async def gemini(message: Message) -> None:
 
 
 @bot.message_handler(commands=['gemini_pro'])
-async def gemini_pro(message: Message) -> None:
+async def cmd_gemini_pro(message: Message) -> None:
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
@@ -69,7 +68,7 @@ async def gemini_pro(message: Message) -> None:
 
 
 @bot.message_handler(commands=['clear'])
-async def clear(message: Message) -> None:
+async def cmd_clear(message: Message) -> None:
     # Check if the player is already in gemini_player_dict.
     if str(message.from_user.id) in bconf.gemini_chat_dict:
         del bconf.gemini_chat_dict[str(message.from_user.id)]
@@ -79,7 +78,7 @@ async def clear(message: Message) -> None:
 
 
 @bot.message_handler(commands=['switch'])
-async def switch(message: Message) -> None:
+async def cmd_switch(message: Message) -> None:
     if message.chat.type != "private":
         await bot.reply_to(message, "This command is only for private chat !")
         return
@@ -113,14 +112,13 @@ async def group_at_text_handler(message: Message) -> None:
     
     :param message: Instance of :class:`telebot.types.Message`
     """
-    logger.info(f'group chat @ed message received: {message.text.strip()}')
     await handel_text_message(message)
 
 
 # content_types=['audio', 'photo', 'voice', 'video', 'document','text', 'location', 'contact', 'sticker']
 @bot.message_handler(func=lambda message: True, content_types=['photo', 'document', 'video', 'audio'])
 async def file_handler(message: Message) -> None:
-    return await handle_file(message)
+    return await file_message(message)
 
 
 async def handel_text_message(message):
@@ -146,7 +144,7 @@ async def handel_text_message(message):
 
 
 #  handle files
-async def handle_file(message: Message, output_img: bool = False):
+async def file_message(message: Message, output_img: bool = False):
     """
         Handle file messages for bot
         
@@ -160,7 +158,7 @@ async def handle_file(message: Message, output_img: bool = False):
     caption = message.caption
     # you must add caption and start with '@bot' to invoke this function in group chat
     if chat_type != 'private':
-        if not caption or not caption.startswith(bconf.BOT_NAME):
+        if not caption and not caption.startswith(bconf.BOT_NAME):
             return
         else:
             caption = caption.strip().split(maxsplit=1)[1].strip() if len(caption.strip().split(maxsplit=1)) > 1 else ""
@@ -188,8 +186,8 @@ async def choose_model(user_id: int) -> str:
 
 async def del_err_message(message: Message, err_info: str = error_info):
     msg = await bot.reply_to(
-            message,
-            err_info
-        )
+        message,
+        err_info
+    )
     await asyncio.sleep(30)
     await bot.delete_message(message.chat.id, msg.message_id)

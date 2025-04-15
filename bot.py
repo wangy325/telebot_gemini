@@ -1,21 +1,53 @@
+import logging
+import uvicorn
 import fastapi
 import telebot
 from telebot.async_telebot import AsyncTeleBot
 
 import bconf
+from bconf import logger
 
-# Init bot
+
+# Init async bot
 bot = AsyncTeleBot(bconf.BOT_TOKEN)
 
-# used for webhook
-app = fastapi.FastAPI(docs_url=None, )
 
+async def init_bot():
+    try:
+        await bot.delete_my_commands()
+        await bot.set_my_commands(commands=[
+            telebot.types.BotCommand("start", "Start"),
+            telebot.types.BotCommand("gemini", "Using gemini-2.0-flash-exp"),
+            telebot.types.BotCommand("geminiPro", "Using gemini-2.5-pro-exp"),
+            telebot.types.BotCommand("clear", "Clear all history"),
+            telebot.types.BotCommand("switch", "Switch to default model(2.0-flash-exp)"),
+        ], )
 
-# process webhook calls
-@app.post(f'/{bconf.BOT_TOKEN}/')
-async def webhook_call(update: dict):
-    if update:
-        update = telebot.types.Update.de_json(update)
-        await bot.process_new_updates([update])
-    else:
-        return
+        if bconf.WEB_HOOK:
+            await bot.remove_webhook()
+            await bot.set_webhook(url=bconf.WEBHOOK_URL)
+            # start aiohttp server
+            logger.info("Starting webhook telegram bot.")
+            app = fastapi.FastAPI(docs_url=None, )
+
+            @app.post(f'/{bconf.BOT_TOKEN}/')
+            async def register_routes(update: dict):
+                if update:
+                    update = telebot.types.Update.de_json(update)
+                    await bot.process_new_updates([update])
+                else:
+                    return
+
+            # 本身开了协程, 不能直接在异步上下文中直接运行
+            # uvicorn.run(app, host=bconf.WEBHOOK_LISTEN, port=bconf.WEBHOOK_PORT)
+            config = uvicorn.Config(app, host=bconf.WEBHOOK_LISTEN, port=bconf.WEBHOOK_PORT)
+            server = uvicorn.Server(config)
+            await server.serve()
+        else:
+            # run telegram bot in polling mode
+            await bot.remove_webhook()
+            logger.info("Starting polling telegram bot.")
+            await bot.polling(non_stop=True)
+    finally:
+        #  close session
+        await bot.close_session()

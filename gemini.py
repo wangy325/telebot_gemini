@@ -14,9 +14,8 @@ from google.genai.errors import ServerError
 from google.genai import types
 from httpx import ConnectError
 import bconf
+from bconf import logger
 
-logger = bconf.logger
-logger.name = __name__
 
 model_1 = bconf.models.get('model_1')
 model_2 = bconf.models.get('model_2')
@@ -24,7 +23,7 @@ error_info = bconf.prompts.get('error_info')
 before_gen_info = bconf.prompts.get('before_generate_info')
 max_retries = 3
 base_delay = 1
-slice_size = 3072  # 默认最长消息长度
+slice_size = 2048  # 默认最长消息长度
 slice_step = 512  # 默认长度内没有换行符时，向后查询的步长
 
 # init gemini client
@@ -186,7 +185,7 @@ async def split_and_send(bot: AsyncTeleBot,
         await send_and_retry_message(bot, message, segment, parse_mode, 'new')
 
 
-# using markdown-it ro analyse and split markdown text
+# using markdown-it to analyse and split markdown text
 # without broke markdown's structure
 def spit_markdown_new(text) -> list[str]:
     chunks = []

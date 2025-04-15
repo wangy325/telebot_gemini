@@ -1,7 +1,25 @@
+<!-- TOC -->
+  * [A Simple Telegram Chat Bot with Gemini Inside](#a-simple-telegram-chat-bot-with-gemini-inside)
+  * [Usage](#usage)
+    * [Install requirements](#install-requirements)
+    * [Run Locally](#run-locally)
+      * [Parameters:](#parameters)
+      * [Additional](#additional-)
+    * [Run with Docker](#run-with-docker)
+      * [Build image](#build-image)
+      * [Run Image](#run-image)
+  * [Deploy](#deploy)
+    * [Deploy on pythonanywhere](#deploy-on-pythonanywhere)
+    * [Deploy on koyeb](#deploy-on-koyeb)
+  * [Supported Models](#supported-models)
+  * [What can this bot do](#what-can-this-bot-do)
+  * [TODO](#todo)
+<!-- TOC -->>
+
 
 ## A Simple Telegram Chat Bot with Gemini Inside
 
-Online Demo: [@wygemibot](https://t.me/wygemibot)
+Demo: [@wygemibot](https://t.me/wygemibot)
 
 ## Usage
 
@@ -94,19 +112,20 @@ service created.
 1. gemini-2.0-flash-exp
 2. gemini-2.5-pro-exp-03-25
 
-## Abilities
+## What can this bot do
 
-1. Chat(private/group)
-2. Content Generate
-   1. documents(.pdf, .txt, .py, ...) + prompt 
-   2. photos + prompt
-   3. audio clips
-   4. video clips
-   5. YouTube video links (unstable)
+1. Chat, both in private and group mode.
+2. Content Generating
+   1. Read documents(pdf/txt/code .etc) and answer questions.
+   2. Analyse photos. 
+   3. Analyse audio clips.
+   4. Analyse video clips
+   5. Analyse YouTube video links (unstable)
 
 
-## TOTO
+## TODO
 
-- [ ] handle reply messages~
 - [x] context of content generation
-- [ ] split markdown
+- [x] split markdown
+- [ ] image generation by gemini
+- [ ] handle reply messages~
