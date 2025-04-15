@@ -4,7 +4,6 @@ from telebot.types import Message
 from md2tgmd import escape
 
 import bconf
-from bconf import logger
 from gemini import chat as gemini_chat
 from gemini import gen_text as gemini_gen_text
 from bot import bot
