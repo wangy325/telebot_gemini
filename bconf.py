@@ -1,14 +1,13 @@
 import os
 import argparse
 import logging
+
+import telebot
 from google.genai import types
 from telebot import asyncio_helper
 
-logger = logging.getLogger(__name__)
-log_handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-log_handler.setFormatter(formatter)
-logger.addHandler(log_handler)
+
+logger = telebot.logger
 logger.setLevel(logging.INFO)
 
 # global configs
