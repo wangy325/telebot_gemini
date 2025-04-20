@@ -36,7 +36,7 @@ async def cmd_start(message: Message) -> None:
         await del_err_message(message)
 
 
-@bot.message_handler(commands=['gemini'])
+@bot.message_handler(commands=['gemini20'])
 async def cmd_gemini(message: Message) -> None:
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
@@ -51,7 +51,7 @@ async def cmd_gemini(message: Message) -> None:
     await gemini_chat(bot, message, utils.model_1)
 
 
-@bot.message_handler(commands=['gemini_pro'])
+@bot.message_handler(commands=['gemini25'])
 async def cmd_gemini_pro(message: Message) -> None:
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
