@@ -120,12 +120,12 @@ service created.
    2. Analyse photos. 
    3. Analyse audio clips.
    4. Analyse video clips
-   ~~5. Analyse YouTube video links (unstable)~~
+   5. ~~Analyse YouTube video by link (unstable)~~
 
 
 ## TODO
 
 - [x] context of content generation
-- [x] split markdown
-- [ ] image generation by gemini
+- [x] split long markdown reply 
+- [x] text to image by gemini 2.0 flash
 - [ ] handle reply messages~
