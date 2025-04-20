@@ -1,4 +1,5 @@
 import asyncio
+import re
 import traceback
 import mimetypes
 import random
@@ -15,12 +16,9 @@ from google.genai import types
 from httpx import ConnectError
 import bconf
 from bconf import logger
+import utils
 
 
-model_1 = bconf.models.get('model_1')
-model_2 = bconf.models.get('model_2')
-error_info = bconf.prompts.get('error_info')
-before_gen_info = bconf.prompts.get('before_generate_info')
 max_retries = 3
 base_delay = 1
 slice_size = 2048  # 默认最长消息长度
@@ -48,10 +46,10 @@ async def creat_chats(model: str) -> AsyncChat:
 # gemini chat
 async def chat(bot: AsyncTeleBot, msg: Message, model: str):
     m_text = msg.text.strip()
-    if m_text.startswith('/'):
+    if m_text.startswith('/') or re.compile(bconf.BOT_NAME).match(m_text):
         # it's a command
         m_text = m_text.split(maxsplit=1)[1].strip()
-    if model == model_1:
+    if model == utils.model_1:
         chat_dict = bconf.gemini_chat_dict
     else:
         chat_dict = bconf.gemini_pro_chat_dict
@@ -60,7 +58,7 @@ async def chat(bot: AsyncTeleBot, msg: Message, model: str):
         chat_dict[str(msg.from_user.id)] = chat_model
     else:
         chat_model = chat_dict[str(msg.from_user.id)]
-    sent_message = await bot.reply_to(msg, before_gen_info)
+    sent_message = await bot.reply_to(msg, utils.before_gen_info)
     logger.info(f'Chat prompt: {m_text}, model: {model}')
     try:
         response = await chat_model.send_message(m_text)
@@ -72,7 +70,7 @@ async def chat(bot: AsyncTeleBot, msg: Message, model: str):
     await split_and_send(bot, sent_message, response)
 
 
-# gemini generate content
+# gemini content generation
 async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str, url_flag: bool = False,
                    **kwargs) -> None:
     """
@@ -118,7 +116,8 @@ async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str
         else:
             # it's an url hard coded
             url = kwargs.get('url')
-        sent_message = await bot.reply_to(message=message, text=before_gen_info)
+            content_type = 'url'
+        sent_message = await bot.reply_to(message=message, text=utils.before_gen_info)
     except Exception as e:
         logger.error(f'File Error: {e}\n{traceback.format_exc()}')
         await reply_and_del_err_message(bot, sent_message)
@@ -160,6 +159,38 @@ async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str
     await split_and_send(bot, sent_message, response)
 
 
+# Gemini image generation
+async def gen_image(bot: AsyncTeleBot, message: Message,  model: str):
+    # TODO: text2image and image2image
+    caption = message.text.strip().split(maxsplit=1)[1].strip()
+    try:
+        response = await gClient.aio.models.generate_content(
+            model=model,
+            contents=[types.Part.from_text(text=caption)],
+            config=types.GenerateContentConfig(
+                response_modalities=['TEXT', 'IMAGE']
+            )
+        )
+    except Exception as e:
+        logger.error(f'Image Error: {e}\n{traceback.format_exc()}')
+        await reply_and_del_err_message(bot, message, "API response error")
+        return
+    response_part = response.candidates[0].content.parts
+    i_bytes, r_text, mime_type = None, '', ''
+    if response_part:
+        for part in response_part:
+            if part.text is not None:
+                r_text = part.text
+            if part.inline_data is not None:
+                logger.info('Image generation success.')
+                i_bytes = part.inline_data.data
+                mime_type = part.inline_data.mime_type
+    if i_bytes:
+        await utils.upload_photo(i_bytes, message.chat.id, r_text, mime_type)
+    else:
+        await reply_and_del_err_message(bot, message, "Can't not get generated image info. Please try again later.")
+
+
 # tele_bot 400 error:   message too long
 # '你好！很高兴为你服务。有什么我可以帮你的吗？\n'
 # split long response to multiple messages
@@ -185,7 +216,7 @@ async def split_and_send(bot: AsyncTeleBot,
         await send_and_retry_message(bot, message, segment, parse_mode, 'new')
 
 
-# using markdown-it to analyse and split markdown text
+# using markdown-it to analyse and split Markdown text
 # without broke markdown's structure
 def spit_markdown_new(text) -> list[str]:
     chunks = []
@@ -195,6 +226,7 @@ def spit_markdown_new(text) -> list[str]:
     md = MarkdownIt("commonmark", {"html": False, "typographer": True})
     tokens = md.parse(text)
 
+    #
     for token in tokens:
         last_token_tag = token.tag
         if token.type.endswith("_open"):
@@ -264,15 +296,15 @@ def spit_markdown(text) -> list[str]:
 # record model response content to chat history
 async def record_response(message: Message, response: GenerateContentResponse, model: str):
     cached_chat = None
-    if model == model_1:
+    if model == utils.model_1:
         cached_chat = bconf.gemini_chat_dict.get(str(message.from_user.id))
-    elif model == model_2:
+    elif model == utils.model_2:
         cached_chat = bconf.gemini_pro_chat_dict.get(str(message.from_user.id))
     if cached_chat is None:
         cached_chat = await creat_chats(model)
-        if model == model_1:
+        if model == utils.model_1:
             bconf.gemini_chat_dict[str(message.from_user.id)] = cached_chat
-        elif model == model_2:
+        elif model == utils.model_2:
             bconf.gemini_pro_chat_dict[str(message.from_user.id)] = cached_chat
     try:
         # ping and no pong
@@ -316,7 +348,7 @@ async def send_and_retry_message(bot: AsyncTeleBot, message: Message, text: str,
                 await reply_and_del_err_message(bot, message)
 
 
-async def reply_and_del_err_message(bot: AsyncTeleBot, message: Message, err_info: str = error_info):
+async def reply_and_del_err_message(bot: AsyncTeleBot, message: Message, err_info: str = utils.error_info):
     try:
         await bot.edit_message_text(
             err_info,

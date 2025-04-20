@@ -18,7 +18,7 @@ prompts = {
 
 models = {
     "model_1": "gemini-2.0-flash-exp",
-    "model_2": "gemini-2.5-pro-exp-03-25"
+    "model_2": "gemini-2.5-flash-preview-04-17",
 }
 
 # Init args
@@ -60,6 +60,7 @@ WEBHOOK_LISTEN = '0.0.0.0'
 WEBHOOK_URL = f"{WEB_HOOK}/{BOT_TOKEN}/"
 #  telebot file path
 FILE_PATH = "https://api.telegram.org/file/bot{}/{}"
+UPLOAD_PHOTO_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
 
 # model instructions
 MODEL_INSTRUCTIONS = [

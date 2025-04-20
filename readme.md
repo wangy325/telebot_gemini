@@ -120,7 +120,7 @@ service created.
    2. Analyse photos. 
    3. Analyse audio clips.
    4. Analyse video clips
-   5. Analyse YouTube video links (unstable)
+   ~~5. Analyse YouTube video links (unstable)~~
 
 
 ## TODO
