@@ -14,13 +14,6 @@ import utils
 error_info = bconf.prompts.get('error_info')
 before_gen_info = bconf.prompts.get('before_generate_info')
 
-url_reg = ('(.*)(https?://(?:www\\.)?[a-zA-Z0-9@:%._+~#=]{1,256}\\'
-           '.[a-zA-Z0-9()]{1,6}\\b[a-zA-Z0-9@:%_+.~#?&//=-]*)(.*)')
-yt_reg = 'https?://(www\\.)?(youtube\\.com/watch\\?v=|youtu\\.be/)[A-Za-z0-9_-]+'
-
-pattern_msg = re.compile(url_reg)
-pattern_yt = re.compile(yt_reg)
-
 
 #  message handlers
 @bot.message_handler(commands=['start'])
@@ -123,25 +116,7 @@ async def handle_text_message(message: Message) -> None:
        :param message: Instance of :class:`telebot.types.Message`
        """
     model = await utils.choose_model(message.from_user.id)
-    text = message.text.strip()
-    rel = pattern_msg.match(text)
-    if not rel:
-        # text does not contain url
-        await gemini_chat(bot, message, model)
-    else:
-        #  text contains url
-        is_caped = bool(rel.group(1)) or bool(rel.group(3))  # true for text + url
-        is_yt_url = bool(pattern_yt.match(rel.group(2)))  # true for yt url
-        if is_caped:
-            if is_yt_url:
-                caption = (rel.group(1) + rel.group(3)).strip()
-                url = pattern_yt.search(message.text.strip()).group()
-                model = await utils.choose_model(message.from_user.id)
-                # analyse YouTube video url
-                # await gemini_gen_text(bot, message, caption, model, True, url=url)
-                await gemini_chat(bot, message, model)
-            else:
-                await gemini_chat(bot, message, model)
+    await gemini_chat(bot, message, model)
 
 
 # content_types=['audio', 'photo', 'voice', 'video', 'document','text', 'location', 'contact', 'sticker']

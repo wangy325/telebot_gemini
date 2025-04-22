@@ -45,6 +45,8 @@ def spit_markdown_new(text) -> list[str]:
                     chunk += "\t" + token.info + token.markup + " "
                 else:
                     chunk += token.info + token.markup + " "
+            elif token.tag == 'p':
+                continue
             elif last_token_tag == 'li':
                 continue
             else:

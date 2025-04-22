@@ -63,8 +63,7 @@ async def chat(bot: AsyncTeleBot, msg: Message, model: str):
 
 
 # gemini content generation
-async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str, url_flag: bool = False,
-                   **kwargs) -> None:
+async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str) -> None:
     """
     Gemini content generation model.
     
@@ -75,57 +74,38 @@ async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str
     :param caption: `str` type file/image caption,  set while sending message
     
     :param model: gemini model name :class:`str`
-    
-    :param url_flag: `bool` value, `True` indicates that message contains YouTube video url,
-        and model needs to analyse the video. Default `False`
-    
-    :param kwargs: Optional. Necessary when param `url_flag` is `True`.
-        Available value: `url='https://youtube.com/watch?v=GqybdMKEf5s'`
     """
     file_info = None
     sent_message = ''
-    file_bytes = None
-    url = ''
     mime_type = ''
     content_type = message.content_type
 
     # load file
     try:
-        if content_type != 'text':
-            if content_type == 'document':
-                file_info = await bot.get_file(message.document.file_id)
-                mime_type = message.document.mime_type
-            elif content_type == 'photo':
-                file_info = await bot.get_file(message.photo[-1].file_id)
-                mime_type = mimetypes.guess_type(file_info.file_path)[0]
-            elif content_type == 'video':
-                file_info = await bot.get_file(message.video.file_id)
-                mime_type = message.video.mime_type
-            elif content_type == 'audio':
-                file_info = await bot.get_file(message.audio.file_id)
-                mime_type = message.audio.mime_type
-            file_bytes = await bot.download_file(file_info.file_path)
-        else:
-            # it's an url hard coded
-            url = kwargs.get('url')
-            content_type = 'url'
+        if content_type == 'document':
+            file_info = await bot.get_file(message.document.file_id)
+            mime_type = message.document.mime_type
+        elif content_type == 'photo':
+            file_info = await bot.get_file(message.photo[-1].file_id)
+            mime_type = mimetypes.guess_type(file_info.file_path)[0]
+        elif content_type == 'video':
+            file_info = await bot.get_file(message.video.file_id)
+            mime_type = message.video.mime_type
+        elif content_type == 'audio':
+            file_info = await bot.get_file(message.audio.file_id)
+            mime_type = message.audio.mime_type
+        file_bytes = await bot.download_file(file_info.file_path)
+
         sent_message = await bot.reply_to(message=message, text=utils.before_gen_info)
     except Exception as e:
         logger.error(f'File Error: {e}\n{traceback.format_exc()}')
         await utils.err_message(bot, sent_message)
         return
 
-    # TODO: url content part has empty mime type
-    if url_flag:
-        contents = [
-            types.Part.from_text(text=caption),
-            types.Part.from_uri(file_uri=url, mime_type=mime_type)  # empty mime_type?
-        ]
-    else:
-        contents = [
-            types.Part.from_text(text=caption),
-            types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
-        ]
+    contents = [
+        types.Part.from_text(text=caption),
+        types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
+    ]
 
     logger.info(f'Content generation: file type: {content_type}, caption: {caption}, model: {model}')
     response = None
