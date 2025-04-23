@@ -16,7 +16,6 @@
   * [TODO](#todo)
 <!-- TOC -->>
 
-
 ## A Simple Telegram Chat Bot with Gemini Inside
 
 Demo: [@wygemibot](https://t.me/wygemibot)
@@ -35,17 +34,17 @@ pip install -r ./requirements.txt
 python main.py --key {your google api key} --token {bot token} --botname {botname} --webhook {webhook url}
 ```
 
-#### Parameters:
+#### Parameters
 
 1. `--key`: Required. Google gemini api key, can apply from https://aistudio.google.com/app/apikey
 2. `--token`: Required. Telegram bot token, get it from [BotFather](https://t.me/BotFather)
-3. `--botname`: Required. Your botname, get it from **BotFather** or bot info page <username>, 
-   start with`@`, `@mybot` for example. 
+3. `--botname`: Required. Your botname, get it from **BotFather** or bot info page <username>,
+   start with`@`, `@mybot` for example.
 4. `--webhook`: Optional. Set it to run telegram bot in webhook mode, or in polling mode.
 
-#### Additional 
+#### Additional
 
-1. You need set proxy to make telegram and gemini connect to server successfully. You can find a 
+1. You need set proxy to make telegram and gemini connect to server successfully. You can find a
    named `set_local_proxy` method in `bconf.py`, run it before start bot in `main.py`
 
     ```python
@@ -54,7 +53,7 @@ python main.py --key {your google api key} --token {bot token} --botname {botnam
         asyncio.run(init_bot())
     ```
 
-2. If you want to run bot in webhook mode locally, you may need extra tools like [ngrok](https://ngrok.com/) 
+2. If you want to run bot in webhook mode locally, you may need extra tools like [ngrok](https://ngrok.com/)
    to proxy your `localhost:port` to a public https link.
 
 ### Run with Docker
@@ -98,14 +97,13 @@ By using koyeb, bot must run in webhook mode.
 2. config your server
    1. source: your image docker hub path
    2. environment variables:
-      - API_KEY=gemini_api_key 
-      - BOT_TOKEN=bot_token 
-      - BOT_NAME=bot_name 
-      - WEB_HOOK=web_hook_url 
+      - API_KEY=gemini_api_key
+      - BOT_TOKEN=bot_token
+      - BOT_NAME=bot_name
+      - WEB_HOOK=web_hook_url
    3. configue ports: 8443
 
-Your webhook url in koyeb is like `https://beauty-girl-7xhd16532.koyeb.app`, which is auto generated once 
-service created.
+Your webhook url in koyeb is like `https://beauty-girl-7xhd16532.koyeb.app`, which is auto generated once service created.
 
 ## Supported Models
 
@@ -117,15 +115,14 @@ service created.
 1. Chat, both in private and group mode.
 2. Content Generating
    1. Read documents(pdf/txt/code .etc) and answer questions.
-   2. Analyse photos. 
+   2. Analyse photos.
    3. Analyse audio clips.
-   4. Analyse video clips
-   ~~5. Analyse YouTube video links (unstable)~~
-
+   4. Analyse video clips.
+   5. ~~Analyse YouTube video links (unstable)~~
 
 ## TODO
 
 - [x] context of content generation
 - [x] split markdown
-- [ ] image generation by gemini
+- [x] image generation by gemini
 - [ ] handle reply messages~
