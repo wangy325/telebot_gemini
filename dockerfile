@@ -7,6 +7,6 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 EXPOSE 8443
 WORKDIR /app
 COPY ./*.py requirements.txt dockerfile  /app/
-RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.mirrors.ustc.edu.cn/simple/
+RUN pip install --no-cache-dir -r requirements.txt
 
 CMD ["python",  "main.py"]
