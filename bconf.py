@@ -8,7 +8,7 @@ from telebot import asyncio_helper
 
 
 logger = telebot.logger
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.ERROR)
 
 # global configs
 prompts = {
