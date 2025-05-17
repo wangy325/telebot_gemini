@@ -21,7 +21,7 @@ gClient = genai.Client(api_key=bconf.API_KEY)
 
 
 # gen gemini chat model
-async def creat_chats(model: str) -> AsyncChat:
+async def create_chats(model: str) -> AsyncChat:
     loop = asyncio.get_event_loop()
 
     def create_chat_model():
@@ -46,7 +46,7 @@ async def chat(bot: AsyncTeleBot, msg: Message, model: str):
     else:
         chat_dict = bconf.gemini_pro_chat_dict
     if str(msg.from_user.id) not in chat_dict:
-        chat_model = await creat_chats(model)
+        chat_model = await create_chats(model)
         chat_dict[str(msg.from_user.id)] = chat_model
     else:
         chat_model = chat_dict[str(msg.from_user.id)]
@@ -174,7 +174,7 @@ async def split_and_send(bot: AsyncTeleBot,
         logger.error(f'APIError: response is None')
         await utils.err_message(bot, message, 'API Error: response text is None!')
         return
-    elif len(text) > utils.slice_size:
+    elif len(text) > utils.slice_size: # 2048
         segments = utils.spit_markdown_new(text)
     else:
         segments = [text]
@@ -195,7 +195,7 @@ async def record_response(message: Message, response: GenerateContentResponse, m
     elif model == utils.model_2:
         cached_chat = bconf.gemini_pro_chat_dict.get(str(message.from_user.id))
     if cached_chat is None:
-        cached_chat = await creat_chats(model)
+        cached_chat = await create_chats(model)
         if model == utils.model_1:
             bconf.gemini_chat_dict[str(message.from_user.id)] = cached_chat
         elif model == utils.model_2:

@@ -87,18 +87,18 @@ generation_config = types.GenerateContentConfig(
     temperature=0.3,
     top_p=0.5,
     top_k=1,
-    max_output_tokens=2048,
+    max_output_tokens=4096,
     seed=30,
     tools=[types.Tool(google_search=types.GoogleSearch())],
     safety_settings=[
-        types.SafetySetting(category='HARM_CATEGORY_HARASSMENT',
-                            threshold='BLOCK_NONE'),
-        types.SafetySetting(category='HARM_CATEGORY_HATE_SPEECH',
-                            threshold='BLOCK_NONE'),
-        types.SafetySetting(category='HARM_CATEGORY_SEXUALLY_EXPLICIT',
-                            threshold='BLOCK_NONE'),
-        types.SafetySetting(category='HARM_CATEGORY_DANGEROUS_CONTENT',
-                            threshold='BLOCK_NONE'),
+        types.SafetySetting(category='HARM_CATEGORY_HARASSMENT', # type: ignore
+                            threshold='BLOCK_NONE'), # type: ignore
+        types.SafetySetting(category='HARM_CATEGORY_HATE_SPEECH', # type: ignore
+                            threshold='BLOCK_NONE'), # type: ignore
+        types.SafetySetting(category='HARM_CATEGORY_SEXUALLY_EXPLICIT', # type: ignore
+                            threshold='BLOCK_NONE'), # type: ignore
+        types.SafetySetting(category='HARM_CATEGORY_DANGEROUS_CONTENT', # type: ignore
+                            threshold='BLOCK_NONE'), # type: ignore
     ],
     system_instruction=MODEL_INSTRUCTIONS
 )

@@ -13,9 +13,9 @@ import bconf
 from bconf import logger
 
 SUFFIX = '.png'
-model_1 = bconf.models.get('model_1')
-model_2 = bconf.models.get('model_2')
-error_info = bconf.prompts.get('error_info')
+model_1: str = bconf.models.get('model_1', '')
+model_2: str = bconf.models.get('model_2', '')
+error_info: str = bconf.prompts.get('error_info', '')
 before_gen_info = bconf.prompts.get('before_generate_info')
 
 slice_size = 2048  # 默认最长消息长度
@@ -85,27 +85,28 @@ async def choose_model(user_id: int) -> str:
             return model_2
 
 
-async def upload_photo(image_bytes, chat_id, caption='', mime_type='image/png'):
+async def upload_photo(image_bytes,
+                       chat_id,
+                       caption='',
+                       mime_type='image/png'):
     image_file = None
     try:
         # Create an in-memory file-like object from the bytes
         image_file = io.BytesIO(image_bytes)
 
-        files = {
-            "photo": (random_file_name(), image_file, mime_type)
-        }
-        data = {
-            "chat_id": chat_id,
-            "caption": caption
-        }
+        files = {"photo": (random_file_name(), image_file, mime_type)}
+        data = {"chat_id": chat_id, "caption": caption}
 
-        response = requests.post(bconf.UPLOAD_PHOTO_URL, data=data, files=files)
-        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+        response = requests.post(bconf.UPLOAD_PHOTO_URL,
+                                 data=data,
+                                 files=files)
+        response.raise_for_status(
+        )  # Raise HTTPError for bad responses (4xx or 5xx)
         logger.info(f'Photo uploaded: {response}')
     except requests.exceptions.RequestException as e:
         logger.error(f"Error sending image: {e}")
     finally:
-        if 'image_file' in locals():
+        if 'image_file' in locals() and image_file is not None:
             image_file.close()
 
 
@@ -114,6 +115,7 @@ def random_file_name():
 
 
 # split markdown by '\n'
+# Deprecated
 def spit_markdown(text) -> list[str]:
     """
     Deprecated.
@@ -147,9 +149,13 @@ def spit_markdown(text) -> list[str]:
     return segments
 
 
-async def send_message(bot: AsyncTeleBot, message: Message, text: str, parse_mode='MarkdownV2', mode='reply'):
+async def send_message(bot: AsyncTeleBot,
+                       message: Message,
+                       text: str,
+                       parse_mode='MarkdownV2',
+                       mode='reply'):
     """
-    send/reply message(s) with retry mach
+    send/reply message(s) with retry.
 
     param: mode: str of message mode, default 'reply'
     """
@@ -161,28 +167,32 @@ async def send_message(bot: AsyncTeleBot, message: Message, text: str, parse_mod
                                             message_id=message.message_id,
                                             parse_mode=parse_mode)
             else:
-                await bot.send_message(message.chat.id, escape(text), parse_mode=parse_mode)
+                await bot.send_message(message.chat.id,
+                                       escape(text),
+                                       parse_mode=parse_mode)
             break
         except Exception as oe:
             # (reply)edit message error, maybe (parse_mode error)? or network error
             logger.error(f'Send message error: {oe}\n{traceback.format_exc()}')
             if attempt < max_retries - 1:
-                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
-                logger.info(f'Send message error, will retry in {delay} seconds')
+                delay = base_delay * (2**attempt) + random.uniform(0, 1)
+                logger.info(
+                    f'Send message error, will retry in {delay} seconds')
                 await asyncio.sleep(delay)
             else:
                 logger.error(f'Maximum retries reached, Send message ERROR')
                 await err_message(bot, message)
 
 
-async def err_message(bot: AsyncTeleBot, message: Message, err_info: str = error_info):
+async def err_message(bot: AsyncTeleBot,
+                      message: Message,
+                      err_info: str = error_info):
     try:
-        await bot.edit_message_text(
-            err_info,
-            chat_id=message.chat.id,
-            message_id=message.message_id
-        )
+        await bot.edit_message_text(err_info,
+                                    chat_id=message.chat.id,
+                                    message_id=message.message_id)
         await asyncio.sleep(30)
         await bot.delete_message(message.chat.id, message.message_id)
     except Exception as e:
-        logger.error(f'Error on deleting message: {e}\n{traceback.format_exc()}')
+        logger.error(
+            f'Error on deleting message: {e}\n{traceback.format_exc()}')
