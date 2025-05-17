@@ -33,10 +33,9 @@ def spit_markdown_new(text) -> list[str]:
         return [text]
     md = MarkdownIt("commonmark", {"html": False, "typographer": True})
     tokens = md.parse(text)
-
+    last_open_token_tag = ''
     #
     for token in tokens:
-        last_token_tag = token.tag
         if token.type.endswith("_open"):
             if token.tag == 'ul':
                 chunk += "\n"
@@ -45,9 +44,8 @@ def spit_markdown_new(text) -> list[str]:
                     chunk += "\t" + token.info + token.markup + " "
                 else:
                     chunk += token.info + token.markup + " "
-            elif token.tag == 'p':
-                continue
-            elif last_token_tag == 'li':
+            elif last_open_token_tag == 'li':
+                last_open_token_tag = token.tag
                 continue
             else:
                 # 判断是否结束token？
@@ -55,6 +53,7 @@ def spit_markdown_new(text) -> list[str]:
                     # 开新的chunk
                     chunks.append(chunk)
                     chunk = ""
+            last_open_token_tag = token.tag
         elif token.type == "fence":
             chunk += token.markup + token.info + "\n" + token.content + token.markup + "\n\n"
         elif token.type.endswith("_close"):

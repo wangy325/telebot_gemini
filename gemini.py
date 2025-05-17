@@ -15,7 +15,6 @@ import bconf
 from bconf import logger
 import utils
 
-
 # init gemini client
 gClient = genai.Client(api_key=bconf.API_KEY)
 
@@ -132,7 +131,7 @@ async def gen_text(bot: AsyncTeleBot, message: Message, caption: str, model: str
 
 
 # Gemini image generation
-async def gen_image(bot: AsyncTeleBot, message: Message,  model: str):
+async def gen_image(bot: AsyncTeleBot, message: Message, model: str):
     # TODO: text2image and image2image
     caption = message.text.strip().split(maxsplit=1)[1].strip()
     try:
@@ -174,7 +173,7 @@ async def split_and_send(bot: AsyncTeleBot,
         logger.error(f'APIError: response is None')
         await utils.err_message(bot, message, 'API Error: response text is None!')
         return
-    elif len(text) > utils.slice_size: # 2048
+    elif len(text) > utils.slice_size:  # 2048
         segments = utils.spit_markdown_new(text)
     else:
         segments = [text]
@@ -212,4 +211,3 @@ async def record_response(message: Message, response: GenerateContentResponse, m
             True)
     except Exception as e:
         logger.error(f'Record response error: {e}\n{traceback.format_exc()}')
-
