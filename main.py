@@ -1,6 +1,6 @@
 import asyncio
-import bconf
 import bot
+import bconf
 # import to register handlers
 import handlers
 
