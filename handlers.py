@@ -32,7 +32,8 @@ async def cmd_start(message: Message) -> None:
 @bot.message_handler(commands=['gemini20'])
 async def cmd_gemini(message: Message) -> None:
     try:
-        m = message.text.strip().split(maxsplit=1)[1].strip()
+        # validating message
+        message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
         await bot.reply_to(
             message,
@@ -47,7 +48,7 @@ async def cmd_gemini(message: Message) -> None:
 @bot.message_handler(commands=['gemini25'])
 async def cmd_gemini_pro(message: Message) -> None:
     try:
-        m = message.text.strip().split(maxsplit=1)[1].strip()
+        message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
         await bot.reply_to(
             message,
@@ -62,7 +63,7 @@ async def cmd_gemini_pro(message: Message) -> None:
 @bot.message_handler(commands=['text2image'])
 async def cmd_image(message: Message) -> None:
     try:
-        m = message.text.strip().split(maxsplit=1)[1].strip()
+        message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
         await bot.reply_to(
             message,
@@ -143,4 +144,3 @@ async def handle_file(message: Message) -> None:
     # choose a model?
     model = await utils.choose_model(message.from_user.id)
     await gemini_gen_text(bot, message, caption, model)
-

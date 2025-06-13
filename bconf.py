@@ -6,7 +6,6 @@ import telebot
 from google.genai import types
 from telebot import asyncio_helper
 
-
 logger = telebot.logger
 logger.setLevel(logging.INFO)
 
@@ -18,7 +17,7 @@ prompts = {
 
 models = {
     "model_1": "gemini-2.0-flash-exp",
-    "model_2": "gemini-2.5-flash-preview-04-17",
+    "model_2": "gemini-2.5-flash-preview-05-20",
 }
 
 # Init args
@@ -64,9 +63,9 @@ UPLOAD_PHOTO_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
 
 # model instructions
 MODEL_INSTRUCTIONS = [
-        "你是一个倾向于使用中文回答问题的AI助理",
-        "You are a AI assistant who always intend to answer questions in Chinese.",
-        "Once you are asked in English, that means you are expected to reply in English."
+    "你是一个倾向于使用中文回答问题的AI助理",
+    "You are a AI assistant who always intend to answer questions in Chinese.",
+    "Once you are asked in English, that means you are expected to reply in English."
 ]
 DEFAULT_PROMPT_EN = {
     "photo": "Please describe what you see in this picture. ",
@@ -91,14 +90,14 @@ generation_config = types.GenerateContentConfig(
     seed=30,
     tools=[types.Tool(google_search=types.GoogleSearch())],
     safety_settings=[
-        types.SafetySetting(category='HARM_CATEGORY_HARASSMENT', # type: ignore
-                            threshold='BLOCK_NONE'), # type: ignore
-        types.SafetySetting(category='HARM_CATEGORY_HATE_SPEECH', # type: ignore
-                            threshold='BLOCK_NONE'), # type: ignore
-        types.SafetySetting(category='HARM_CATEGORY_SEXUALLY_EXPLICIT', # type: ignore
-                            threshold='BLOCK_NONE'), # type: ignore
-        types.SafetySetting(category='HARM_CATEGORY_DANGEROUS_CONTENT', # type: ignore
-                            threshold='BLOCK_NONE'), # type: ignore
+        types.SafetySetting(category='HARM_CATEGORY_HARASSMENT',  # type: ignore
+                            threshold='BLOCK_NONE'),  # type: ignore
+        types.SafetySetting(category='HARM_CATEGORY_HATE_SPEECH',  # type: ignore
+                            threshold='BLOCK_NONE'),  # type: ignore
+        types.SafetySetting(category='HARM_CATEGORY_SEXUALLY_EXPLICIT',  # type: ignore
+                            threshold='BLOCK_NONE'),  # type: ignore
+        types.SafetySetting(category='HARM_CATEGORY_DANGEROUS_CONTENT',  # type: ignore
+                            threshold='BLOCK_NONE'),  # type: ignore
     ],
     system_instruction=MODEL_INSTRUCTIONS
 )
@@ -126,4 +125,3 @@ def set_local_proxies():
 
 
 logger.info("Arg parse done.")
-
