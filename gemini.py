@@ -163,7 +163,7 @@ async def gen_image(bot: AsyncTeleBot, message: Message, model: str):
 
 
 # tele_bot 400 error:   message too long
-# split long response to multiple messages
+# split response to multiple messages
 async def split_and_send(bot: AsyncTeleBot,
                          message: Message,
                          response: GenerateContentResponse,

@@ -16,8 +16,8 @@ async def init_bot():
         await bot.delete_my_commands()
         await bot.set_my_commands(commands=[
             telebot.types.BotCommand("start", "Start"),
-            telebot.types.BotCommand("gemini20", "Using gemini-2.0-flash"),
-            telebot.types.BotCommand("gemini25", "Using gemini-2.5-flash"),
+            # telebot.types.BotCommand("gemini20", "Using gemini-2.0-flash"),
+            # telebot.types.BotCommand("gemini25", "Using gemini-2.5-flash"),
             telebot.types.BotCommand("clear", "Clear all history"),
             telebot.types.BotCommand("switch", "Switch model"),
             telebot.types.BotCommand("text2image", "Generate image by Gemini 2.0 flash"),

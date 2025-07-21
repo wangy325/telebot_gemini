@@ -1,5 +1,3 @@
-import asyncio
-import re
 from telebot.types import Message
 from md2tgmd import escape
 

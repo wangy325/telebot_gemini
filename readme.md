@@ -125,8 +125,10 @@ Configure the repository/source and branch properly and set environment variable
 
 ## Supported Models
 
-1. gemini-2.0-flash-exp
-2. gemini-2.5-pro-exp-03-25
+> pro version is not stable for testing usage.
+
+1. gemini-2.5-flash
+2. gemini-2.5-flash-lite-preview
 
 ## What can this bot do
 
