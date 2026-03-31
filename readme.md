@@ -109,17 +109,17 @@ Build your own docker image to deploy with docker.
 
 The easier way is build from github repository. 2 things need to do before build from github:
 
-1. [fork](https://github.com/wangy325/snipy/fork) this repo
+1. [fork](https://github.com/wangy325/telebot_gemini/fork) this repo
 2. install [gitPull](https://github.com/apps/pull) to sync updates
 
 If you are the first time deploying, do as page instruction. And do not
-forget to set `Work directory` as `./pys/atelebot`.
+forget to set `Work directory` as `.`.
 
 Your webhook url of koyeb is like `https://beauty-girl-7xhd16532.koyeb.app`, which is auto generated once service created.
 
 Below is a deploy link(demo):
 
-[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?name=tgemini&repository=wangy325%2Fsnipy&branch=main&workdir=.%2Fpys%2Fatelebot&builder=dockerfile&dockerfile=.%2FDockerfile&instance_type=free&regions=was&instances_min=0&autoscaling_sleep_idle_delay=300&env%5BAPI_KEY%5D=&env%5BBOT_NAME%5D=&env%5BBOT_TOKEN%5D=&env%5BWEB_HOOK%5D=&ports=8443%3Bhttp%3B%2F&hc_protocol%5B8443%5D=tcp&hc_grace_period%5B8443%5D=5&hc_interval%5B8443%5D=30&hc_restart_limit%5B8443%5D=3&hc_timeout%5B8443%5D=5&hc_path%5B8443%5D=%2F&hc_method%5B8443%5D=get)
+[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?name=tgemini&type=git&workdir=.&builder=dockerfile&dockerfile=.%2FDockerfile&instance_type=free&regions=was&instances_min=0&autoscaling_sleep_idle_delay=3900&env%5BAPI_KEY%5D=AIzaSyCMV_QDrJj8ijtDd9orhbxhiV_O1x-kPcA&env%5BBOT_NAME%5D=%40wygemibot&env%5BBOT_TOKEN%5D=7436966069%3AAAGIoO4A5vMGvZHlMF6tMKCxVWifd0iyUaQ&env%5BWEB_HOOK%5D=https%3A%2F%2Faccurate-puma.koyeb.app&ports=8443%3Bhttp%3B%2F&hc_protocol%5B8443%5D=tcp&hc_grace_period%5B8443%5D=5&hc_interval%5B8443%5D=30&hc_restart_limit%5B8443%5D=3&hc_timeout%5B8443%5D=5&hc_path%5B8443%5D=%2F&hc_method%5B8443%5D=get)
 
 Configure the repository/source and branch properly and set environment variables correctly, then deploy.
 
