@@ -1,0 +1,60 @@
+name: Sync from snipy
+
+on:
+  schedule:
+    # 每天早上 8 点 UTC 执行同步
+    - cron: '0 8 * * *'
+  # 支持手动触发
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout telebot_gemini
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+      - name: Fetch from snipy
+        run: |
+          git remote add snipy https://github.com/wangy325/snipy.git || true
+          git fetch snipy tbot
+
+      - name: Extract atelebot from snipy
+        run: |
+          # 清理旧的临时分支
+          git branch -D snipy-atelebot 2>/dev/null || true
+          
+          # 从snipy的tbot分支中提取pys/atelebot的完整历史
+          # 这会创建一个新分支，其根目录就是atelebot的内容
+          git subtree split --prefix=pys/atelebot -b snipy-atelebot snipy/tbot
+
+      - name: Update main branch
+        run: |
+          # 检查是否有新改动
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse snipy-atelebot)" ]; then
+            # 强制重置为snipy-atelebot的状态
+            git reset --hard snipy-atelebot
+            
+            # 推送到远程main分支
+            git push -f origin main
+            echo "✅ Successfully synced from snipy"
+          else
+            echo "ℹ️ Already up to date with snipy"
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # 删除临时分支
+          git branch -D snipy-atelebot 2>/dev/null || true
