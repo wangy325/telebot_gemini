@@ -16,8 +16,8 @@ prompts = {
 }
 
 models = {
-    "model_1": "gemini-2.5-flash",
-    "model_2": "gemini-2.5-flash-lite-preview-06-17",
+    "model_1": "gemini-3.5-flash",
+    "model_2": "gemini-3.6-flash",
 }
 
 # Init args
